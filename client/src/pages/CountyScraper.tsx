@@ -1,191 +1,217 @@
-// County Scraper — Daily motivated lead feed from county records
-import { useState } from "react";
+// County Scraper — shows pre-loaded counties, placeholder leads, scraper setup status
+// Back-end scraper will be built and configured upon client transfer to Railway
 
-const MOCK_LEADS = [
-  { id: "HOR-FC-01118", type: "Foreclosure", owner: "Eugene F. Butler", address: "4821 Palmetto Dunes Dr", city: "Myrtle Beach", county: "Horry", case: "2026-CP-26-01118", filed: "04/09/2026", equity: "$142K", score: 87 },
-  { id: "HOR-TX-00892", type: "Tax Delinquent", owner: "Marcus & Linda Webb", address: "1103 Ocean Blvd Unit 4B", city: "North Myrtle Beach", county: "Horry", case: "2026-TX-26-00892", filed: "04/08/2026", equity: "$89K", score: 74 },
-  { id: "HOR-SS-00341", type: "Sheriff Sale", owner: "Sara Lynn Fisher", address: "7720 Kings Hwy", city: "Myrtle Beach", county: "Horry", case: "2025-CP-26-01534", filed: "04/07/2026", equity: "$210K", score: 91 },
-  { id: "HOR-LP-00204", type: "Lis Pendens", owner: "Robert T. Simmons", address: "2204 Glenns Bay Rd", city: "Surfside Beach", county: "Horry", case: "2026-CP-26-00204", filed: "04/06/2026", equity: "$67K", score: 62 },
-  { id: "HOR-FC-00987", type: "Foreclosure", owner: "Jennifer Kowalski", address: "5512 Socastee Blvd", city: "Myrtle Beach", county: "Horry", case: "2026-CP-26-00987", filed: "04/05/2026", equity: "$178K", score: 83 },
-  { id: "GEO-TX-00112", type: "Tax Delinquent", owner: "David & Ann Prescott", address: "312 Front St", city: "Georgetown", county: "Georgetown", case: "2026-TX-22-00112", filed: "04/09/2026", equity: "$54K", score: 69 },
-  { id: "HOR-PR-00078", type: "Probate", owner: "Estate of Harold Greene", address: "908 Waccamaw Pines Dr", city: "Conway", county: "Horry", case: "2026-PB-26-00078", filed: "04/04/2026", equity: "$312K", score: 95 },
-  { id: "HOR-DV-00056", type: "Divorce", owner: "Thomas & Rachel Nguyen", address: "1847 Waterway Blvd", city: "Little River", county: "Horry", case: "2026-DR-26-00056", filed: "04/03/2026", equity: "$195K", score: 78 },
+import { useState } from "react";
+import { MapPin, Clock, AlertCircle, CheckCircle2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+
+interface County {
+  name: string;
+  state: string;
+  leadTypes: string[];
+}
+
+interface Lead {
+  id: string;
+  name: string;
+  address: string;
+  county: string;
+  type: string;
+  date: string;
+  caseNumber: string;
+  status: "new" | "reviewed" | "contacted";
+}
+
+const PLACEHOLDER_LEADS: Lead[] = [
+  { id: "1", name: "Sample Owner A", address: "123 Main St", county: "COUNTY_1", type: "Pre-Foreclosure", date: "2026-04-28", caseNumber: "XXXX-CP-26-01234", status: "new" },
+  { id: "2", name: "Sample Owner B", address: "456 Oak Ave", county: "COUNTY_1", type: "Tax Delinquent", date: "2026-04-27", caseNumber: "XXXX-TD-26-00891", status: "new" },
+  { id: "3", name: "Sample Owner C", address: "789 Pine Rd", county: "COUNTY_2", type: "Probate", date: "2026-04-26", caseNumber: "XXXX-PR-26-00445", status: "reviewed" },
+  { id: "4", name: "Sample Owner D", address: "321 Elm Blvd", county: "COUNTY_1", type: "Pre-Foreclosure", date: "2026-04-25", caseNumber: "XXXX-CP-26-01189", status: "new" },
+  { id: "5", name: "Sample Owner E", address: "654 Cedar Ln", county: "COUNTY_2", type: "Sheriff Sale", date: "2026-04-24", caseNumber: "XXXX-SS-26-00312", status: "contacted" },
 ];
 
-const TYPE_COLORS: Record<string, string> = {
-  "Foreclosure": "atlas-badge-red",
-  "Tax Delinquent": "atlas-badge-amber",
-  "Sheriff Sale": "atlas-badge-red",
-  "Lis Pendens": "atlas-badge-orange",
-  "Probate": "atlas-badge-blue",
-  "Divorce": "atlas-badge-blue",
+const STATUS_COLORS = {
+  new: "bg-emerald-500/20 text-emerald-400",
+  reviewed: "bg-yellow-500/20 text-yellow-400",
+  contacted: "bg-blue-500/20 text-blue-400",
 };
 
-const SCORE_COLOR = (s: number) =>
-  s >= 85 ? "oklch(0.60 0.22 25)" : s >= 70 ? "oklch(0.75 0.18 65)" : "oklch(0.65 0.18 145)";
+const TYPE_COLORS: Record<string, string> = {
+  "Pre-Foreclosure": "bg-red-500/20 text-red-400",
+  "Tax Delinquent": "bg-orange-500/20 text-orange-400",
+  "Probate": "bg-purple-500/20 text-purple-400",
+  "Sheriff Sale": "bg-pink-500/20 text-pink-400",
+};
 
-export default function CountyScraper() {
-  const [filter, setFilter] = useState("All");
-  const [running, setRunning] = useState(false);
-  const [lastRun] = useState("Today at 6:02 AM");
+interface CountyScraperProps {
+  counties: County[];
+  accentColor: string;
+}
 
-  const types = ["All", "Foreclosure", "Tax Delinquent", "Sheriff Sale", "Lis Pendens", "Probate", "Divorce"];
-  const filtered = filter === "All" ? MOCK_LEADS : MOCK_LEADS.filter(l => l.type === filter);
+export default function CountyScraper({ counties, accentColor }: CountyScraperProps) {
+  const [selectedCounty, setSelectedCounty] = useState<string>("all");
+  const [expandedSetup, setExpandedSetup] = useState(false);
+
+  // Replace placeholder county names with real ones
+  const leads = PLACEHOLDER_LEADS.map((lead, i) => ({
+    ...lead,
+    county: counties[i % counties.length]?.name || lead.county,
+    address: lead.address + `, ${counties[i % counties.length]?.state || ""}`,
+  }));
+
+  const filtered = selectedCounty === "all"
+    ? leads
+    : leads.filter((l) => l.county === selectedCounty);
 
   return (
-    <div style={{ maxWidth: 1200 }}>
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
-        <div>
-          <h1 className="atlas-section-title" style={{ marginBottom: 6 }}>County Scraper</h1>
-          <p style={{ fontSize: 14, color: "oklch(0.45 0.02 40)" }}>
-            Daily motivated seller leads from county records · Last run: <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "oklch(0.65 0.18 145)" }}>{lastRun}</span>
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="atlas-btn-ghost">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export CSV
-          </button>
-          <button
-            className="atlas-btn"
-            onClick={() => { setRunning(true); setTimeout(() => setRunning(false), 2500); }}
-            style={{ opacity: running ? 0.7 : 1 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: running ? "spin 1s linear infinite" : "none" }}>
-              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-            </svg>
-            {running ? "Scraping..." : "Run Now"}
-          </button>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-white">County Scraper</h1>
+        <p className="text-white/50 text-sm mt-1">
+          Daily motivated seller leads pulled directly from your target counties.
+        </p>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
-        {[
-          { label: "Total Today", value: "47", color: "oklch(0.95 0.01 60)" },
-          { label: "Foreclosures", value: "18", color: "oklch(0.60 0.22 25)" },
-          { label: "Tax Delinquent", value: "12", color: "oklch(0.75 0.18 65)" },
-          { label: "Probate/Divorce", value: "9", color: "oklch(0.60 0.18 240)" },
-          { label: "High Score (85+)", value: "11", color: "oklch(0.72 0.18 65)" },
-        ].map(s => (
-          <div key={s.label} className="atlas-stat-card" style={{ padding: 16 }}>
-            <div className="atlas-label" style={{ marginBottom: 6 }}>{s.label}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+      {/* Setup Status Banner */}
+      <div
+        className="rounded-xl border border-white/10 overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #0f0f17 0%, #1a1a2e 100%)" }}
+      >
+        <button
+          onClick={() => setExpandedSetup(!expandedSetup)}
+          className="w-full flex items-center justify-between px-5 py-4 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-yellow-400" />
+            </div>
+            <div>
+              <div className="text-white font-semibold text-sm">Scraper Setup Pending</div>
+              <div className="text-white/40 text-xs">
+                Live scraping activates upon transfer to your Railway account
+              </div>
+            </div>
           </div>
-        ))}
+          {expandedSetup ? (
+            <ChevronUp className="w-4 h-4 text-white/40" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-white/40" />
+          )}
+        </button>
+
+        {expandedSetup && (
+          <div className="px-5 pb-5 border-t border-white/8">
+            <div className="mt-4 space-y-3">
+              <p className="text-white/60 text-sm">
+                When you transfer Atlas to your Railway account, your dedicated scraper will be built and configured to pull the following lead types from your counties every day at 6:00 AM:
+              </p>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                {["Pre-Foreclosure Filings", "Tax Delinquent Records", "Probate Filings", "Sheriff Sale Listings", "Lis Pendens", "Code Violations"].map((type) => (
+                  <div key={type} className="flex items-center gap-2 text-sm text-white/50">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500/60 flex-shrink-0" />
+                    {type}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 p-3 rounded-lg bg-white/5 border border-white/8">
+                <div className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-2">Target Counties</div>
+                <div className="flex flex-wrap gap-2">
+                  {counties.map((c) => (
+                    <span key={c.name} className="px-2 py-1 rounded-md bg-white/8 text-white/60 text-xs">
+                      {c.name}, {c.state}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Config panel */}
-      <div className="atlas-card" style={{ padding: 20, marginBottom: 20 }}>
-        <div className="atlas-label" style={{ marginBottom: 14 }}>Scraper Configuration</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 12, color: "oklch(0.45 0.02 40)", marginBottom: 6 }}>Target Counties</div>
-            <select className="atlas-input" style={{ fontSize: 13 }}>
-              <option>Horry County, SC</option>
-              <option>Georgetown County, SC</option>
-              <option>Marion County, SC</option>
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "oklch(0.45 0.02 40)", marginBottom: 6 }}>Lead Types</div>
-            <select className="atlas-input" style={{ fontSize: 13 }}>
-              <option>All Types</option>
-              <option>Foreclosure Only</option>
-              <option>Tax Delinquent Only</option>
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "oklch(0.45 0.02 40)", marginBottom: 6 }}>Days Back</div>
-            <select className="atlas-input" style={{ fontSize: 13 }}>
-              <option>1 day</option>
-              <option>7 days</option>
-              <option>30 days</option>
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "oklch(0.45 0.02 40)", marginBottom: 6 }}>Schedule</div>
-            <select className="atlas-input" style={{ fontSize: 13 }}>
-              <option>Daily at 6:00 AM</option>
-              <option>Daily at 7:00 AM</option>
-              <option>Manual Only</option>
-            </select>
-          </div>
-        </div>
+      {/* County Filter + Stats */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setSelectedCounty("all")}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            selectedCounty === "all"
+              ? "text-white"
+              : "bg-white/5 text-white/50 hover:text-white"
+          }`}
+          style={selectedCounty === "all" ? { backgroundColor: accentColor + "33", color: accentColor } : {}}
+        >
+          All Counties ({leads.length})
+        </button>
+        {counties.map((c) => {
+          const count = leads.filter((l) => l.county === c.name).length;
+          return (
+            <button
+              key={c.name}
+              onClick={() => setSelectedCounty(c.name)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                selectedCounty === c.name
+                  ? "text-white"
+                  : "bg-white/5 text-white/50 hover:text-white"
+              }`}
+              style={selectedCounty === c.name ? { backgroundColor: accentColor + "33", color: accentColor } : {}}
+            >
+              {c.name} ({count})
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {types.map(t => (
-          <button
-            key={t}
-            onClick={() => setFilter(t)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              border: "1px solid",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "all 0.15s",
-              background: filter === t ? "oklch(0.72 0.18 65)" : "transparent",
-              borderColor: filter === t ? "oklch(0.72 0.18 65)" : "oklch(0.22 0.015 30)",
-              color: filter === t ? "white" : "oklch(0.50 0.02 40)",
-            }}
-          >{t}</button>
-        ))}
+      {/* Sample Data Notice */}
+      <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+        <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
+        <p className="text-blue-300/80 text-xs">
+          Showing sample lead data. Live county leads will populate here daily once your scraper is activated.
+        </p>
       </div>
 
-      {/* Leads table */}
-      <div className="atlas-card" style={{ overflow: "hidden" }}>
-        <table className="atlas-table">
-          <thead>
-            <tr>
-              <th>Score</th>
-              <th>Type</th>
-              <th>Owner</th>
-              <th>Address</th>
-              <th>County</th>
-              <th>Case #</th>
-              <th>Filed</th>
-              <th>Est. Equity</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(lead => (
-              <tr key={lead.id}>
-                <td>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: "50%",
-                    background: `${SCORE_COLOR(lead.score)} / 0.1`,
-                    border: `2px solid ${SCORE_COLOR(lead.score)}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontWeight: 700, fontSize: 13,
-                    color: SCORE_COLOR(lead.score),
-                  }}>{lead.score}</div>
-                </td>
-                <td><span className={`atlas-badge ${TYPE_COLORS[lead.type] || "atlas-badge-orange"}`}>{lead.type}</span></td>
-                <td style={{ fontWeight: 500, color: "oklch(0.90 0.01 60)" }}>{lead.owner}</td>
-                <td style={{ color: "oklch(0.70 0.01 60)" }}>{lead.address}</td>
-                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{lead.county}</td>
-                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "oklch(0.55 0.02 40)" }}>{lead.case}</td>
-                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{lead.filed}</td>
-                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "oklch(0.65 0.18 145)", fontWeight: 600 }}>{lead.equity}</td>
-                <td>
-                  <button className="atlas-btn" style={{ padding: "6px 12px", fontSize: 12 }}>
-                    Skip Trace →
-                  </button>
-                </td>
+      {/* Leads Table */}
+      <div className="rounded-xl border border-white/8 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/8">
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">Owner</th>
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">Address</th>
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">County</th>
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">Lead Type</th>
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">Case #</th>
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">Date</th>
+                <th className="text-left px-4 py-3 text-white/40 text-xs font-semibold uppercase tracking-wider">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filtered.map((lead) => (
+                <tr key={lead.id} className="hover:bg-white/3 transition-colors">
+                  <td className="px-4 py-3 text-white text-sm font-medium">{lead.name}</td>
+                  <td className="px-4 py-3 text-white/60 text-sm">{lead.address}</td>
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1 text-white/60 text-sm">
+                      <MapPin className="w-3 h-3" />
+                      {lead.county}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${TYPE_COLORS[lead.type] || "bg-white/10 text-white/60"}`}>
+                      {lead.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-white/40 text-xs font-mono">{lead.caseNumber}</td>
+                  <td className="px-4 py-3 text-white/40 text-sm">{lead.date}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-medium capitalize ${STATUS_COLORS[lead.status]}`}>
+                      {lead.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

@@ -1,184 +1,161 @@
-// Atlas Login — Dark split layout matching existing Atlas branding
+// Login page — branded per client
+
 import { useState } from "react";
+import { Eye, EyeOff, ArrowRight } from "lucide-react";
 
 interface LoginProps {
+  companyName: string;
+  userEmail: string;
+  userPassword: string;
+  accentColor: string;
   onLogin: () => void;
 }
 
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ companyName, userEmail, userPassword, accentColor, onLogin }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
     setTimeout(() => {
-      if (email === "dan@therealestatebutton.com" && password === "Dan1074$") {
+      if (email.trim().toLowerCase() === userEmail.toLowerCase() && password === userPassword) {
         onLogin();
       } else {
-        setError("Invalid credentials. Please try again.");
+        setError("Invalid email or password.");
         setLoading(false);
       }
     }, 600);
   };
 
   return (
-    <div style={{
-      display: "flex", height: "100vh",
-      background: "oklch(0.10 0.01 30)",
-      fontFamily: "'Inter', sans-serif",
-    }}>
+    <div className="min-h-screen bg-[#0a0a0f] flex">
       {/* Left panel */}
-      <div style={{
-        flex: 1,
-        background: "oklch(0.09 0.01 30)",
-        borderRight: "1px solid oklch(0.20 0.015 30)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        padding: "60px",
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        {/* Background glow */}
-        <div style={{
-          position: "absolute", top: "20%", left: "-10%",
-          width: 400, height: 400, borderRadius: "50%",
-          background: "oklch(0.60 0.20 28 / 0.06)",
-          filter: "blur(80px)",
-          pointerEvents: "none",
-        }}/>
-
-        {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: "oklch(0.72 0.18 65)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
+      <div className="hidden md:flex flex-col justify-between w-1/2 p-12 relative overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            background: `radial-gradient(ellipse at 30% 50%, ${accentColor} 0%, transparent 70%)`,
+          }}
+        />
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-16">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+              style={{ backgroundColor: accentColor }}
+            >
+              A
+            </div>
+            <div>
+              <div className="text-white font-semibold text-sm">Atlas</div>
+              <div className="text-white/40 text-xs">{companyName}</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: "oklch(0.95 0.01 60)", letterSpacing: "-0.02em" }}>EasyButton</div>
-            <div style={{ fontSize: 10, color: "oklch(0.45 0.02 40)", letterSpacing: "0.1em", fontFamily: "'JetBrains Mono', monospace" }}>REAL ESTATE</div>
+          <h1 className="text-4xl font-bold text-white leading-tight mb-4">
+            Your full-time<br />
+            <span style={{ color: accentColor }}>data team,</span><br />
+            built into one app.
+          </h1>
+          <p className="text-white/50 text-sm leading-relaxed max-w-sm">
+            Atlas connects to county records, satellite imagery, and AI to surface motivated sellers in your market — every single day.
+          </p>
+        </div>
+        <div className="relative">
+          <div className="flex flex-wrap gap-2">
+            {["County Scraper", "Property Condition AI", "Insurance Gap", "Social Distress", "Obituary Monitor", "Fire Damage"].map((tag) => (
+              <span key={tag} className="px-3 py-1 rounded-full bg-white/8 text-white/40 text-xs border border-white/8">
+                {tag}
+              </span>
+            ))}
           </div>
-        </div>
-
-        <div style={{ fontSize: 11, color: "oklch(0.72 0.18 65)", letterSpacing: "0.12em", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", marginBottom: 16 }}>
-          Meet Atlas
-        </div>
-        <h1 style={{
-          fontFamily: "'Syne', sans-serif",
-          fontSize: 48,
-          fontWeight: 800,
-          lineHeight: 1.1,
-          letterSpacing: "-0.03em",
-          color: "oklch(0.95 0.01 60)",
-          marginBottom: 20,
-        }}>
-          Your <span style={{ color: "oklch(0.72 0.18 65)", fontStyle: "italic" }}>full-time</span><br/>
-          data team,<br/>
-          built into one app.
-        </h1>
-        <p style={{ fontSize: 15, color: "oklch(0.50 0.02 40)", lineHeight: 1.6, maxWidth: 380 }}>
-          Atlas by Dan Button Properties connects to dozens of property databases, satellites, and softwares to bring you{" "}
-          <strong style={{ color: "oklch(0.70 0.01 60)", fontWeight: 600 }}>sellers ready to sell in your buy box, today.</strong>
-        </p>
-
-        {/* Feature pills */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 36 }}>
-          {["County Scraper", "AI Condition Scoring", "Insurance Gap", "Social Distress", "Obituary Monitor", "Fire Damage"].map(f => (
-            <div key={f} style={{
-              padding: "6px 12px",
-              background: "oklch(0.15 0.01 30)",
-              border: "1px solid oklch(0.22 0.015 30)",
-              borderRadius: 20,
-              fontSize: 12,
-              color: "oklch(0.60 0.01 60)",
-            }}>{f}</div>
-          ))}
+          <p className="text-white/20 text-xs mt-4">Atlas by {companyName} · Private Access Only</p>
         </div>
       </div>
 
       {/* Right panel */}
-      <div style={{
-        width: 460,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        padding: "60px 48px",
-      }}>
-        {/* Atlas icon */}
-        <div style={{
-          width: 52, height: 52, borderRadius: 14,
-          background: "oklch(0.72 0.18 65)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          marginBottom: 24,
-          boxShadow: "0 8px 32px oklch(0.60 0.20 28 / 0.3)",
-        }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-          </svg>
-        </div>
-
-        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 700, color: "oklch(0.95 0.01 60)", marginBottom: 6, letterSpacing: "-0.02em" }}>
-          Welcome back.
-        </h2>
-        <p style={{ fontSize: 14, color: "oklch(0.45 0.02 40)", marginBottom: 32 }}>
-          I'm Atlas — <span style={{ color: "oklch(0.72 0.18 65)", fontWeight: 600 }}>your full-time data agent.</span><br/>
-          Your full-time data team, built into one app.
-        </p>
-
-        {error && (
-          <div style={{
-            background: "oklch(0.60 0.22 25 / 0.1)",
-            border: "1px solid oklch(0.60 0.22 25 / 0.3)",
-            borderRadius: 6, padding: "10px 14px",
-            fontSize: 13, color: "oklch(0.70 0.15 25)",
-            marginBottom: 20,
-          }}>{error}</div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <div className="atlas-label" style={{ marginBottom: 6 }}>Email Address</div>
-            <input
-              className="atlas-input"
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="w-full max-w-sm">
+          <div className="md:hidden flex items-center gap-3 mb-10">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+              style={{ backgroundColor: accentColor }}
+            >
+              A
+            </div>
+            <div>
+              <div className="text-white font-semibold text-sm">Atlas</div>
+              <div className="text-white/40 text-xs">{companyName}</div>
+            </div>
           </div>
-          <div>
-            <div className="atlas-label" style={{ marginBottom: 6 }}>Password</div>
-            <input
-              className="atlas-input"
-              type="password"
-              placeholder="••••••••••"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            className="atlas-btn"
-            style={{ marginTop: 8, padding: "12px 20px", fontSize: 15, justifyContent: "center", opacity: loading ? 0.7 : 1 }}
-            disabled={loading}
-          >
-            {loading ? "Authenticating..." : "Access Atlas →"}
-          </button>
-        </form>
 
-        <div style={{ marginTop: 32, fontSize: 11, color: "oklch(0.35 0.02 40)", textAlign: "center", fontFamily: "'JetBrains Mono', monospace" }}>
-          Atlas by Dan Button Properties · Private Access Only · SC Real Estate Intelligence
+          <h2 className="text-2xl font-bold text-white mb-1">Welcome back.</h2>
+          <p className="text-white/40 text-sm mb-8">
+            I'm Atlas — <span style={{ color: accentColor }}>your full-time data agent.</span>
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-white/50 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 text-sm focus:outline-none focus:border-white/25"
+              />
+            </div>
+            <div>
+              <label className="block text-white/50 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPw ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••"
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-11 text-white placeholder-white/20 text-sm focus:outline-none focus:border-white/25"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60 mt-2"
+              style={{ backgroundColor: accentColor }}
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  Access Atlas
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
         </div>
       </div>
     </div>
