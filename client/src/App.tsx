@@ -1,42 +1,46 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+// Atlas by Easy Button Data
+// Design: Dark Intelligence Terminal — Bloomberg meets modern SaaS
+// Colors: Near-black base (#0D0B0A), EBRE orange-red accent (#E8521A), amber data highlights (#F5A623)
+// Typography: Syne (display) + Inter (body) + JetBrains Mono (data)
 
+import { Switch, Route, useLocation } from "wouter";
+import { useState } from "react";
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import CountyScraper from "@/pages/CountyScraper";
+import PropertyCondition from "@/pages/PropertyCondition";
+import InsuranceGap from "@/pages/InsuranceGap";
+import SocialDistress from "@/pages/SocialDistress";
+import ObituaryMonitor from "@/pages/ObituaryMonitor";
+import FireDamage from "@/pages/FireDamage";
+import AppLayout from "@/components/AppLayout";
 
-function Router() {
+export default function App() {
+  const [authed, setAuthed] = useState(() => {
+    return localStorage.getItem("atlas_authed") === "true";
+  });
+  const [location, setLocation] = useLocation();
+
+  if (!authed) {
+    return <Login onLogin={() => { localStorage.setItem("atlas_authed", "true"); setAuthed(true); setLocation("/"); }} />;
+  }
+
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <AppLayout onLogout={() => { localStorage.removeItem("atlas_authed"); setAuthed(false); }}>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/county-scraper" component={CountyScraper} />
+        <Route path="/property-condition" component={PropertyCondition} />
+        <Route path="/insurance-gap" component={InsuranceGap} />
+        <Route path="/social-distress" component={SocialDistress} />
+        <Route path="/obituary" component={ObituaryMonitor} />
+        <Route path="/fire-damage" component={FireDamage} />
+        <Route>
+          <div className="flex items-center justify-center h-full text-atlas-muted">
+            Page not found
+          </div>
+        </Route>
+      </Switch>
+    </AppLayout>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-}
-
-export default App;
