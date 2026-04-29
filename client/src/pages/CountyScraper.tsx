@@ -67,7 +67,7 @@ export default function CountyScraper() {
           { label: "Foreclosures", value: "18", color: "oklch(0.60 0.22 25)" },
           { label: "Tax Delinquent", value: "12", color: "oklch(0.75 0.18 65)" },
           { label: "Probate/Divorce", value: "9", color: "oklch(0.60 0.18 240)" },
-          { label: "High Score (85+)", value: "11", color: "oklch(0.60 0.20 28)" },
+          { label: "High Score (85+)", value: "11", color: "oklch(0.72 0.18 65)" },
         ].map(s => (
           <div key={s.label} className="atlas-stat-card" style={{ padding: 16 }}>
             <div className="atlas-label" style={{ marginBottom: 6 }}>{s.label}</div>
@@ -129,8 +129,8 @@ export default function CountyScraper() {
               fontWeight: 500,
               cursor: "pointer",
               transition: "all 0.15s",
-              background: filter === t ? "oklch(0.60 0.20 28)" : "transparent",
-              borderColor: filter === t ? "oklch(0.60 0.20 28)" : "oklch(0.22 0.015 30)",
+              background: filter === t ? "oklch(0.72 0.18 65)" : "transparent",
+              borderColor: filter === t ? "oklch(0.72 0.18 65)" : "oklch(0.22 0.015 30)",
               color: filter === t ? "white" : "oklch(0.50 0.02 40)",
             }}
           >{t}</button>
