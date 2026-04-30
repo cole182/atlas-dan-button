@@ -1,8 +1,5 @@
-// Atlas UI — Design: Dark intelligence dashboard
-// Active modules: County Scraper, Property Condition Scoring
-// Locked modules (upsell): Insurance Gap, Social Distress, Obituary Monitor, Fire Damage
-// Settings: API key configuration hub
-
+// Atlas AppLayout — Premium dark intelligence dashboard
+// Sidebar: 64px wider, refined typography, subtle glow on active items
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
@@ -18,6 +15,7 @@ import {
   Lock,
   Menu,
   X,
+  Zap,
 } from "lucide-react";
 
 interface NavItem {
@@ -30,50 +28,12 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    label: "County Scraper",
-    icon: Map,
-    href: "/county-scraper",
-    active: true,
-  },
-  {
-    label: "Property Condition AI",
-    icon: Building2,
-    href: "/property-condition",
-    active: true,
-  },
-  {
-    label: "Insurance Gap Finder",
-    icon: Shield,
-    href: "/insurance-gap",
-    active: false,
-    locked: true,
-    lockReason: "Identify properties with coverage gaps — upgrade to unlock",
-  },
-  {
-    label: "Social Distress Signal",
-    icon: Users,
-    href: "/social-distress",
-    active: false,
-    locked: true,
-    lockReason: "Monitor social platforms for motivated seller signals — upgrade to unlock",
-  },
-  {
-    label: "Obituary Monitor",
-    icon: BookOpen,
-    href: "/obituary-monitor",
-    active: false,
-    locked: true,
-    lockReason: "Track probate leads from public obituaries — upgrade to unlock",
-  },
-  {
-    label: "Fire Damage Monitor",
-    icon: Flame,
-    href: "/fire-damage",
-    active: false,
-    locked: true,
-    lockReason: "Track fire-damaged properties in your market — upgrade to unlock",
-  },
+  { label: "County Scraper", icon: Map, href: "/county-scraper", active: true },
+  { label: "Property Condition AI", icon: Building2, href: "/property-condition", active: true },
+  { label: "Insurance Gap Finder", icon: Shield, href: "/insurance-gap", active: false, locked: true, lockReason: "Identify properties with coverage gaps — upgrade to unlock" },
+  { label: "Social Distress Signal", icon: Users, href: "/social-distress", active: false, locked: true, lockReason: "Monitor social platforms for motivated seller signals — upgrade to unlock" },
+  { label: "Obituary Monitor", icon: BookOpen, href: "/obituary-monitor", active: false, locked: true, lockReason: "Track estate and probate leads — upgrade to unlock" },
+  { label: "Fire Damage Monitor", icon: Flame, href: "/fire-damage", active: false, locked: true, lockReason: "Track fire-damaged properties — upgrade to unlock" },
 ];
 
 interface AppLayoutProps {
@@ -94,25 +54,26 @@ export default function AppLayout({ children, companyName, userEmail, accentColo
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-6 py-6 border-b border-white/10">
+      {/* Logo area */}
+      <div className="px-5 py-5 border-b border-white/[0.07]">
         <div className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-            style={{ backgroundColor: accentColor }}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg flex-shrink-0"
+            style={{ backgroundColor: accentColor, boxShadow: `0 2px 12px ${accentColor}50` }}
           >
             A
           </div>
-          <div>
-            <div className="text-white font-semibold text-sm leading-tight">Atlas</div>
-            <div className="text-white/40 text-xs leading-tight">{companyName}</div>
+          <div className="min-w-0">
+            <div className="text-white font-bold text-sm leading-tight tracking-wide">Atlas</div>
+            <div className="text-white/35 text-[11px] leading-tight truncate">{companyName}</div>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="text-white/30 text-xs font-semibold uppercase tracking-widest px-3 mb-3">
+      <nav className="flex-1 px-3 py-5 space-y-0.5 overflow-y-auto">
+        {/* Active section label */}
+        <div className="text-white/25 text-[10px] font-bold uppercase tracking-[0.18em] px-3 mb-3">
           Active Modules
         </div>
         {NAV_ITEMS.filter((i) => !i.locked).map((item) => {
@@ -122,22 +83,26 @@ export default function AppLayout({ children, companyName, userEmail, accentColo
             <Link key={item.href} href={item.href}>
               <a
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
-                  isActive
-                    ? "text-white"
-                    : "text-white/50 hover:text-white hover:bg-white/5"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative ${
+                  isActive ? "text-white" : "text-white/45 hover:text-white/80 hover:bg-white/[0.04]"
                 }`}
-                style={isActive ? { backgroundColor: accentColor + "22", color: accentColor } : {}}
+                style={isActive ? {
+                  backgroundColor: accentColor + "1a",
+                  color: accentColor,
+                  boxShadow: `inset 0 0 0 1px ${accentColor}25`,
+                } : {}}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {isActive && <ChevronRight className="w-3 h-3" />}
+                <span className="flex-1 truncate">{item.label}</span>
+                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
               </a>
             </Link>
           );
         })}
 
-        <div className="text-white/30 text-xs font-semibold uppercase tracking-widest px-3 mt-6 mb-3">
+        {/* Locked section label */}
+        <div className="text-white/25 text-[10px] font-bold uppercase tracking-[0.18em] px-3 mt-6 mb-3 flex items-center gap-2">
+          <Zap className="w-3 h-3" />
           Upgrade to Unlock
         </div>
         {NAV_ITEMS.filter((i) => i.locked).map((item) => {
@@ -145,28 +110,32 @@ export default function AppLayout({ children, companyName, userEmail, accentColo
           return (
             <div
               key={item.href}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/25 cursor-not-allowed select-none"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/20 cursor-not-allowed select-none"
               title={item.lockReason}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1">{item.label}</span>
-              <Lock className="w-3 h-3" />
+              <span className="flex-1 truncate">{item.label}</span>
+              <Lock className="w-3 h-3 opacity-60" />
             </div>
           );
         })}
       </nav>
 
       {/* Bottom */}
-      <div className="px-3 py-4 border-t border-white/10 space-y-1">
+      <div className="px-3 py-4 border-t border-white/[0.07] space-y-0.5">
         <Link href="/settings">
           <a
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
               location === "/settings"
                 ? "text-white"
-                : "text-white/50 hover:text-white hover:bg-white/5"
+                : "text-white/45 hover:text-white/80 hover:bg-white/[0.04]"
             }`}
-            style={location === "/settings" ? { backgroundColor: accentColor + "22", color: accentColor } : {}}
+            style={location === "/settings" ? {
+              backgroundColor: accentColor + "1a",
+              color: accentColor,
+              boxShadow: `inset 0 0 0 1px ${accentColor}25`,
+            } : {}}
           >
             <Settings className="w-4 h-4" />
             <span>Settings & API Keys</span>
@@ -174,33 +143,36 @@ export default function AppLayout({ children, companyName, userEmail, accentColo
         </Link>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/40 hover:text-red-400 hover:bg-red-400/5 transition-all"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/35 hover:text-red-400 hover:bg-red-400/[0.06] transition-all"
         >
           <LogOut className="w-4 h-4" />
           <span>Sign Out</span>
         </button>
-        <div className="px-3 pt-2">
-          <div className="text-white/25 text-xs truncate">{userEmail}</div>
+        <div className="px-3 pt-3">
+          <div className="text-white/20 text-[11px] truncate">{userEmail}</div>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="flex h-screen bg-[#0a0a0f] overflow-hidden">
+    <div className="flex h-screen bg-[#080810] overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0f0f17] border-r border-white/8 flex-col">
+      <aside className="hidden md:flex w-64 flex-shrink-0 flex-col" style={{ background: "#0c0c18", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
         <SidebarContent />
       </aside>
 
       {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setMobileOpen(false)}
-          />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-[#0f0f17] border-r border-white/8 flex flex-col">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-64 flex flex-col" style={{ background: "#0c0c18", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
+              <span className="text-white font-bold text-sm">Atlas</span>
+              <button onClick={() => setMobileOpen(false)} className="text-white/40 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <SidebarContent />
           </aside>
         </div>
@@ -209,17 +181,19 @@ export default function AppLayout({ children, companyName, userEmail, accentColo
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-white/8 bg-[#0f0f17]">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="text-white/60 hover:text-white"
-          >
+        <div className="md:hidden flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.07]" style={{ background: "#0c0c18" }}>
+          <button onClick={() => setMobileOpen(true)} className="text-white/50 hover:text-white transition-colors">
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-white font-semibold text-sm">Atlas</span>
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-black text-xs"
+            style={{ backgroundColor: accentColor }}
+          >
+            A
+          </div>
+          <span className="text-white font-bold text-sm">Atlas</span>
         </div>
-
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-[#080810]">
           {children}
         </main>
       </div>
