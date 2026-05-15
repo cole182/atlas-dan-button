@@ -2,7 +2,7 @@
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile"]
+cmds = ["corepack enable && corepack prepare pnpm@latest --activate && pnpm install --no-frozen-lockfile"]
 
 [phases.build]
 cmds = ["pnpm run build"]
