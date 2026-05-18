@@ -43,6 +43,7 @@ function leadsToCSV(leads: Record<string, string | null>[]): string {
 // ─── SCRAPE JOB STATE ─────────────────────────────────────────────────────────
 let scrapeInProgress = false;
 let lastScrapeLog: string[] = [];
+let lastScrapeTime: string | null = null;
 
 async function runScrapeJob(fromDate: string, toDate: string): Promise<number> {
   if (scrapeInProgress) throw new Error("Scrape already in progress");
@@ -69,6 +70,7 @@ async function runScrapeJob(fromDate: string, toDate: string): Promise<number> {
 
     if (errors.length) lastScrapeLog.push(`⚠ ${errors.length} errors: ${errors.join("; ")}`);
     lastScrapeLog.push(`✓ Done: ${totalNew} new leads saved`);
+    lastScrapeTime = new Date().toISOString();
     console.log(`[Scrape] Complete: ${totalNew} new leads`);
   } finally {
     scrapeInProgress = false;
@@ -114,16 +116,19 @@ async function startServer() {
   // GET /api/leads — list leads with filters
   app.get("/api/leads", (req, res) => {
     const { county, lead_type, status, from_date, to_date, limit, offset } = req.query as Record<string, string>;
-    const leads = getLeads({
+    const filters = {
       county: county || undefined,
       lead_type: lead_type || undefined,
       status: status || undefined,
       from_date: from_date || undefined,
       to_date: to_date || undefined,
-      limit: limit ? parseInt(limit) : 100,
-      offset: offset ? parseInt(offset) : 0,
-    });
-    res.json({ leads, total: leads.length });
+    };
+    const allLeads = getLeads(filters);
+    const total = allLeads.length;
+    const pageLimit = limit ? parseInt(limit) : 100;
+    const pageOffset = offset ? parseInt(offset) : 0;
+    const leads = allLeads.slice(pageOffset, pageOffset + pageLimit);
+    res.json({ leads, total });
   });
 
   // GET /api/leads/export — download CSV
@@ -153,7 +158,7 @@ async function startServer() {
 
   // GET /api/stats — dashboard stats
   app.get("/api/stats", (_req, res) => {
-    res.json(getStats());
+    res.json({ ...getStats(), lastScrapeTime });
   });
 
   // GET /api/config — client config (counties, name)
