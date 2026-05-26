@@ -258,6 +258,46 @@ async function scrapeObituaries(county: string, fromDate: string, toDate: string
   return leads;
 }
 
+// ─── BANKRUPTCY — Northern District of AL (ecf.alnb.uscourts.gov) ─────────────
+export async function scrapeBankruptcy(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rss = await fetchWithRetry("https://ecf.alnb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (!rss.ok) return leads;
+    const xml = await rss.text();
+    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const item of items) {
+      const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+      const link  = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+      const desc  = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+      const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+      const caseNum = (title.match(/([0-9]{2}-[0-9]{5})/)?.[1]) || title;
+      const caseName = desc.replace(/<[^>]+>/g, "").trim();
+      leads.push({
+        id: makeId("AL", "AL", "Bankruptcy", caseNum),
+        county: "AL",
+        state: "AL",
+        lead_type: "Bankruptcy",
+        owner_name: caseName || caseNum,
+        address: "",
+        city: "",
+        zip: "",
+        mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+        case_number: caseNum,
+        filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+        assessed_value: null, tax_year: null,
+        lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+        source_url: link || "https://ecf.alnb.uscourts.gov/cgi-bin/rss_outside.pl",
+        description: `AL Bankruptcy — ${caseName || caseNum}`,
+        raw_data: JSON.stringify({ title, caseNum, caseName, pubDate }),
+      });
+    }
+  } catch (e) {
+    console.error("[AL] Bankruptcy RSS error:", e);
+  }
+  return leads;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export async function scrapeAlabama(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
   const results = await Promise.allSettled([
@@ -266,6 +306,7 @@ export async function scrapeAlabama(county: string, fromDate: string, toDate: st
     scrapeSheriffSales(county, fromDate, toDate),
     scrapeFSBO(county, fromDate, toDate),
     scrapeObituaries(county, fromDate, toDate),
+    scrapeBankruptcy(fromDate, toDate),
   ]);
 
   return results

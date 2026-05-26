@@ -441,6 +441,42 @@ async function scrapeFSBO(fromDate: string, toDate: string): Promise<Lead[]> {
   return leads;
 }
 
+// ─── BANKRUPTCY — Eastern District of WI (ecf.wieb.uscourts.gov) ─────────────
+export async function scrapeBankruptcy(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rss = await fetchWithRetry("https://ecf.wieb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (!rss.ok) return leads;
+    const xml = await rss.text();
+    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const item of items) {
+      const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+      const link  = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+      const desc  = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+      const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+      const caseNum = (title.match(/([0-9]{2}-[0-9]{5})/)?.[1]) || title;
+      const caseName = desc.replace(/<[^>]+>/g, "").trim();
+      leads.push({
+        id: makeId("WI", STATE, "Bankruptcy", caseNum),
+        county: "WI",
+        state: STATE,
+        lead_type: "Bankruptcy",
+        owner_name: caseName || caseNum,
+        address: "",
+        city: "",
+        zip: "",
+        filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+        source_url: link || "https://ecf.wieb.uscourts.gov/cgi-bin/rss_outside.pl",
+        description: `WI Bankruptcy — ${caseName || caseNum}`,
+        raw_data: JSON.stringify({ title, caseNum, caseName, pubDate }),
+      });
+    }
+  } catch (e) {
+    console.error("[WI] Bankruptcy RSS error:", e);
+  }
+  return leads;
+}
+
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
 export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[]> {
   const results = await Promise.allSettled([
@@ -460,6 +496,8 @@ export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[
     scrapeObituaries(fromDate, toDate),
     // FSBO
     scrapeFSBO(fromDate, toDate),
+    // Bankruptcy
+    scrapeBankruptcy(fromDate, toDate),
   ]);
 
   return results.flatMap(r => r.status === "fulfilled" ? r.value : []);

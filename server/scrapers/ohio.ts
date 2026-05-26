@@ -273,6 +273,81 @@ async function scrapeFireDamage(fromDate: string, toDate: string): Promise<Lead[
   return leads;
 }
 
+// ─── BANKRUPTCY — Southern District of OH (ecf.ohsb.uscourts.gov) ─────────────
+export async function scrapeBankruptcy(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rss = await fetchWithRetry("https://ecf.ohsb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (!rss.ok) return leads;
+    const xml = await rss.text();
+    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const item of items) {
+      const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+      const link  = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+      const desc  = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+      const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+      const caseNum = (title.match(/([0-9]{2}-[0-9]{5})/)?.[1]) || title;
+      const caseName = desc.replace(/<[^>]+>/g, "").trim();
+      leads.push({
+        id: makeId("OH", "OH", "Bankruptcy", caseNum),
+        county: "Hamilton",
+        state: "OH",
+        lead_type: "Bankruptcy",
+        owner_name: caseName || caseNum,
+        address: "", city: "", zip: "",
+        mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+        case_number: caseNum,
+        filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+        assessed_value: null, tax_year: null,
+        lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+        source_url: link || "https://ecf.ohsb.uscourts.gov/cgi-bin/rss_outside.pl",
+        description: `OH Bankruptcy — ${caseName || caseNum}`,
+        raw_data: JSON.stringify({ title, caseNum, caseName, pubDate }),
+      });
+    }
+  } catch (e) {
+    console.error("[OH] Bankruptcy RSS error:", e);
+  }
+  return leads;
+}
+
+// ─── OBITUARIES — Legacy.com OH (Cincinnati Enquirer) ───────────────────────
+export async function scrapeObituaries(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  const url = `https://www.legacy.com/us/obituaries/enquirer/browse?dateRange=last30Days&countryId=1&regionId=36`; // OH
+  try {
+    const res = await fetchWithRetry(url);
+    if (!res.ok) return leads;
+    const html = await res.text();
+    const nameMatches = html.matchAll(/<span[^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/gi);
+    const locationMatches = [...html.matchAll(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)*),\s*(?:OH|Ohio)/g)];
+    const names = [...nameMatches].map(m => m[1].trim()).filter(n => n.length > 3);
+    const linkMatches = [...html.matchAll(/href="(\/us\/obituaries\/[^"]+)"/g)].map(m => `https://www.legacy.com${m[1]}`);
+    names.forEach((name, i) => {
+      const location = locationMatches[i]?.[1] || "Cincinnati";
+      leads.push({
+        id: makeId("Hamilton", "OH", "Obituary", name + i),
+        county: "Hamilton",
+        state: "OH",
+        lead_type: "Obituary",
+        owner_name: name,
+        address: "", city: location, zip: "",
+        mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+        case_number: null,
+        filing_date: formatDate(fromDate),
+        assessed_value: null, tax_year: null,
+        lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+        source_url: linkMatches[i] || url,
+        description: `Obituary — ${name}, ${location}, OH. Potential estate/probate lead.`,
+        raw_data: JSON.stringify({ name, location }),
+      });
+    });
+  } catch (e) {
+    console.error("[OH] Obituaries error:", e);
+  }
+  return leads;
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export async function scrapeOhio(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
   if (county !== "Hamilton") return [];
@@ -284,6 +359,8 @@ export async function scrapeOhio(county: string, fromDate: string, toDate: strin
     scrapeProbate(fromDate, toDate),
     scrapeFSBO(fromDate, toDate),
     scrapeFireDamage(fromDate, toDate),
+    scrapeBankruptcy(fromDate, toDate),
+    scrapeObituaries(fromDate, toDate),
   ]);
 
   return results

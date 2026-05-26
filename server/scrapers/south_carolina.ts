@@ -673,6 +673,77 @@ export async function scrapeSC(county: string, fromDate: string, toDate: string)
   return leads;
 }
 
+// ─── BANKRUPTCY — District of SC (ecf.scb.uscourts.gov) ─────────────────────
+export async function scrapeBankruptcy(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rss = await fetchWithRetry("https://ecf.scb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (!rss.ok) return leads;
+    const xml = await rss.text();
+    const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    for (const item of items) {
+      const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+      const link  = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+      const desc  = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+      const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+      const caseNum = (title.match(/([0-9]{2}-[0-9]{5})/)?.[1]) || title;
+      const caseName = desc.replace(/<[^>]+>/g, "").trim();
+      leads.push({
+        id: makeId("SC", "SC", "Bankruptcy", caseNum),
+        county: "SC",
+        state: "SC",
+        lead_type: "Bankruptcy",
+        owner_name: caseName || caseNum,
+        address: "",
+        city: "",
+        zip: "",
+        filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+        source_url: link || "https://ecf.scb.uscourts.gov/cgi-bin/rss_outside.pl",
+        description: `SC Bankruptcy — ${caseName || caseNum}`,
+        raw_data: JSON.stringify({ title, caseNum, caseName, pubDate }),
+      });
+    }
+  } catch (e) {
+    console.error("[SC] Bankruptcy RSS error:", e);
+  }
+  return leads;
+}
+
+// ─── OBITUARIES — Legacy.com SC ──────────────────────────────────────────────
+export async function scrapeObituaries(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  const url = `https://www.legacy.com/us/obituaries/thesunnews/browse?dateRange=last30Days&countryId=1&regionId=45`; // SC
+  try {
+    const res = await fetchWithRetry(url);
+    if (!res.ok) return leads;
+    const html = await res.text();
+    const nameMatches = html.matchAll(/<span[^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/gi);
+    const locationMatches = [...html.matchAll(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)*),\s*(?:SC|South Carolina)/g)];
+    const names = [...nameMatches].map(m => m[1].trim()).filter(n => n.length > 3);
+    const linkMatches = [...html.matchAll(/href="(\/us\/obituaries\/[^"]+)"/g)].map(m => `https://www.legacy.com${m[1]}`);
+    names.forEach((name, i) => {
+      const location = locationMatches[i]?.[1] || "SC";
+      leads.push({
+        id: makeId("SC", "SC", "Obituary", name + i),
+        county: "Horry",
+        state: "SC",
+        lead_type: "Obituary",
+        owner_name: name,
+        address: "",
+        city: location,
+        zip: "",
+        filing_date: formatDate(fromDate),
+        source_url: linkMatches[i] || url,
+        description: `Obituary — ${name}, ${location}, SC. Potential estate/probate lead.`,
+        raw_data: JSON.stringify({ name, location }),
+      });
+    });
+  } catch (e) {
+    console.error("[SC] Obituaries error:", e);
+  }
+  return leads;
+}
+
 export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[]> {
   const results = await Promise.allSettled([
     scrapeHorryPreForeclosure(fromDate, toDate),
@@ -682,7 +753,8 @@ export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[
     scrapeHorrySheriffSales(fromDate, toDate),
     scrapeGeorgetownCounty(fromDate, toDate),
     scrapeMarionCounty(fromDate, toDate),
+    scrapeBankruptcy(fromDate, toDate),
+    scrapeObituaries(fromDate, toDate),
   ]);
-
   return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 }
