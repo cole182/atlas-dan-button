@@ -40,10 +40,19 @@ export function formatDate(d: string | null | undefined): string | null {
 
 export async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 3): Promise<Response> {
   const SCRAPER_KEY = process.env.SCRAPER_API_KEY;
-  // Route through ScraperAPI if key is set (bypasses government site IP blocks)
-  const fetchUrl = SCRAPER_KEY
-    ? `https://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(url)}&render=false`
-    : url;
+  // Route through ScraperAPI for government/county sites that block by IP
+  // EXCLUDE: PACER (requires auth), CourtListener (has own auth), Craigslist, RSS feeds
+  const skipScraperAPI = !SCRAPER_KEY ||
+    url.includes("uscourts.gov") ||
+    url.includes("courtlistener.com") ||
+    url.includes("craigslist.org") ||
+    url.includes("rss") ||
+    url.includes(".xml") ||
+    url.includes("api.") ||
+    url.includes("scraperapi.com");
+  const fetchUrl = skipScraperAPI
+    ? url
+    : `https://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(url)}&render=false`;
   const headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
