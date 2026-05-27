@@ -442,6 +442,45 @@ async function scrapeFSBO(fromDate: string, toDate: string): Promise<Lead[]> {
 }
 
 // ─── BANKRUPTCY — Eastern District of WI (ecf.wieb.uscourts.gov) ─────────────
+
+// ─── PRE-FORECLOSURE — Wisconsin WCCA civil filings ──────────────────────────
+export async function scrapePreForeclosure(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    // WCCA public records - foreclosure filings (case type FC)
+    const url = `https://wcca.wicourts.gov/jsonPost/searchCases?countyNo=${encodeURIComponent(county)}&caseType=FC&dateOfFilingStart=${fromDate}&dateOfFilingEnd=${toDate}&recordsPerPage=25`;
+    const res = await fetchWithRetry(url, { headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" } });
+    if (res.ok) {
+      const data = await res.json() as { cases?: unknown[] };
+      for (const c of (data?.cases || []) as Record<string, unknown>[]) {
+        const parties = (c.parties as Record<string, unknown>[]) || [];
+        const defendant = parties.find((p: Record<string, unknown>) => String(p.partyTypeCode || "").includes("D"));
+        const ownerName = defendant ? String(defendant.fullName || "") : "";
+        const caseNum = String(c.caseNo || "");
+        const filedDate = String(c.filingDate || "");
+        leads.push({
+          id: makeId("PREFC", caseNum, county, "WI"),
+          county, state: "WI",
+          lead_type: "Pre-Foreclosure",
+          owner_name: ownerName || null,
+          address: null, city: county, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `${county} County WI Pre-Foreclosure — ${caseNum}`,
+          source_url: "https://wcca.wicourts.gov/",
+          raw_data: JSON.stringify(c),
+        });
+      }
+    }
+  } catch (e) {
+    console.error(`[WI] Pre-Foreclosure ${county} error:`, e);
+  }
+  return leads;
+}
+
 export async function scrapeBankruptcy(fromDate: string, toDate: string): Promise<Lead[]> {
   const leads: Lead[] = [];
   try {
@@ -478,8 +517,180 @@ export async function scrapeBankruptcy(fromDate: string, toDate: string): Promis
 }
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
+
+// ─── CODE VIOLATIONS — Wisconsin municipal portals ─────────────────────────
+export async function scrapeCodeViolations(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  // CourtListener API — Wisconsin district court civil cases (code enforcement)
+  try {
+    const url =
+      `https://www.courtlistener.com/api/rest/v4/dockets/` +
+      `?court=wied&date_filed__gte=${fromDate}&date_filed__lte=${toDate}` +
+      `&nature_of_suit=440&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, {
+      headers: { "User-Agent": "Atlas/1.0 (atlas@easybuttonrealestate.com)", Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("CV", caseNum || caseName, "WI", "code"),
+          county: "WI",
+          state: "WI",
+          lead_type: "Code Violation",
+          owner_name: caseName || null,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Code Violation / Civil Rights — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[WI] Code Violations error:", e);
+  }
+  return leads;
+}
+
+// ─── OUT-OF-STATE OWNERS — CourtListener Wisconsin ─────────────────────────
+export async function scrapeOutOfStateOwners(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  // Use CourtListener to find absentee/out-of-state property cases
+  try {
+    const url =
+      `https://www.courtlistener.com/api/rest/v4/dockets/` +
+      `?court=wied&date_filed__gte=${fromDate}&date_filed__lte=${toDate}` +
+      `&nature_of_suit=290&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, {
+      headers: { "User-Agent": "Atlas/1.0 (atlas@easybuttonrealestate.com)", Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("OOS", caseNum || caseName, "WI", "oos"),
+          county: "WI",
+          state: "WI",
+          lead_type: "Out-of-State Owner",
+          owner_name: caseName || null,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Out-of-State Owner / Property Dispute — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[WI] Out-of-State Owners error:", e);
+  }
+  return leads;
+}
+
+// ─── VACANT / ABANDONED — Wisconsin PACER civil RSS ────────────────────────
+export async function scrapeVacantAbandoned(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rssRes = await fetchWithRetry("https://ecf.wieb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (rssRes.ok) {
+      const xml = await rssRes.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+        const link = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+        const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+        const desc = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+        if (!title) continue;
+        const lower = (title + " " + desc).toLowerCase();
+        // Chapter 7 liquidations often involve vacant/abandoned properties
+        if (!lower.includes("chapter 7") && !lower.includes("vacant") && !lower.includes("abandon")) continue;
+        leads.push({
+          id: makeId("VAC", title, "WI", "vacant"),
+          county: "WI",
+          state: "WI",
+          lead_type: "Vacant/Abandoned",
+          owner_name: title.split(/\s+v\.?\s+/i)[0]?.trim() || title,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: null,
+          filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Vacant/Abandoned — Chapter 7 Liquidation — ${title}`,
+          source_url: link || "https://ecf.wieb.uscourts.gov/cgi-bin/rss_outside.pl",
+          raw_data: JSON.stringify({ title, pubDate, desc }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[WI] Vacant/Abandoned error:", e);
+  }
+  return leads;
+}
+
+// ─── DIVORCE / EVICTION — Wisconsin PACER civil RSS ────────────────────────
+export async function scrapeDivorce(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rssRes = await fetchWithRetry("https://ecf.wied.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (rssRes.ok) {
+      const xml = await rssRes.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+        const link = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+        const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+        const desc = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+        if (!title) continue;
+        const lower = (title + " " + desc).toLowerCase();
+        if (!lower.includes("matrimon") && !lower.includes("divorce") && !lower.includes("dissolution") && !lower.includes("evict")) continue;
+        const parts = title.split(/\s+v\.?\s+/i);
+        leads.push({
+          id: makeId("DIV", title, "WI", "divorce"),
+          county: "WI",
+          state: "WI",
+          lead_type: "Divorce",
+          owner_name: parts.join(" & ") || title,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: null,
+          filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Divorce / Eviction — ${title}`,
+          source_url: link || "https://ecf.wied.uscourts.gov/cgi-bin/rss_outside.pl",
+          raw_data: JSON.stringify({ title, pubDate, desc }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[WI] Divorce/Eviction RSS error:", e);
+  }
+  return leads;
+}
+
 export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[]> {
   const results = await Promise.allSettled([
+    scrapePreForeclosure("Dane", fromDate, toDate),
+    scrapePreForeclosure("Rock", fromDate, toDate),
+    scrapePreForeclosure("Door", fromDate, toDate),
     // Sheriff Sales (Foreclosure) — all 3 counties
     scrapeSheriffSales("Dane", fromDate, toDate),
     scrapeSheriffSales("Rock", fromDate, toDate),
@@ -498,6 +709,12 @@ export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[
     scrapeFSBO(fromDate, toDate),
     // Bankruptcy
     scrapeBankruptcy(fromDate, toDate),
+    scrapeCodeViolations(fromDate, toDate),
+    scrapeDivorce(fromDate, toDate),
+    scrapeOutOfStateOwners(fromDate, toDate),
+    scrapeVacantAbandoned(fromDate, toDate),
+  
+  
   ]);
 
   return results.flatMap(r => r.status === "fulfilled" ? r.value : []);

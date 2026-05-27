@@ -240,7 +240,7 @@ async function scrapeObituaries(county: string, fromDate: string, toDate: string
       leads.push({
         id: makeId(names[i], county, "AL", "obit"),
         county, state: "AL",
-        lead_type: "Probate/Estate",
+        lead_type: "Obituary",
         owner_name: names[i],
         address: null, city: null, zip: null,
         mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
@@ -259,6 +259,40 @@ async function scrapeObituaries(county: string, fromDate: string, toDate: string
 }
 
 // ─── BANKRUPTCY — Northern District of AL (ecf.alnb.uscourts.gov) ─────────────
+
+// ─── PROBATE — Alabama SJIS probate court filings ────────────────────────────
+export async function scrapeProbate(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const url = `https://v2.alacourt.com/frmPublicCaseSearch.aspx?county=${encodeURIComponent(county)}&caseType=PR&fromDate=${fromDate}&toDate=${toDate}`;
+    const res = await fetchWithRetry(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) return leads;
+    const html = await res.text();
+    const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+    for (const row of rows) {
+      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
+      if (cells.length < 3) continue;
+      const getText = (cell: string) => cell.replace(/<[^>]+>/g, "").trim();
+      const caseNum = getText(cells[0] || "");
+      const name = getText(cells[1] || "");
+      const filed = getText(cells[2] || "");
+      if (!caseNum && !name) continue;
+      leads.push({
+        id: makeId("PROB", caseNum || name, county, "AL"),
+        county, state: "AL", lead_type: "Probate",
+        owner_name: name || null, address: null, city: county, zip: null,
+        mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+        case_number: caseNum || null, filing_date: formatDate(filed),
+        assessed_value: null, tax_year: null, lender: null, loan_amount: null,
+        sale_date: null, sale_amount: null,
+        description: `${county} County AL Probate — ${name || caseNum}`,
+        source_url: url, raw_data: JSON.stringify({ caseNum, name, filed }),
+      });
+    }
+  } catch (e) { console.error(`[AL] Probate ${county} error:`, e); }
+  return leads;
+}
+
 export async function scrapeBankruptcy(fromDate: string, toDate: string): Promise<Lead[]> {
   const leads: Lead[] = [];
   try {
@@ -299,6 +333,175 @@ export async function scrapeBankruptcy(fromDate: string, toDate: string): Promis
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
+
+// ─── CODE VIOLATIONS — Alabama municipal portals ─────────────────────────
+export async function scrapeCodeViolations(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  // CourtListener API — Alabama district court civil cases (code enforcement)
+  try {
+    const url =
+      `https://www.courtlistener.com/api/rest/v4/dockets/` +
+      `?court=alnd&date_filed__gte=${fromDate}&date_filed__lte=${toDate}` +
+      `&nature_of_suit=440&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, {
+      headers: { "User-Agent": "Atlas/1.0 (atlas@easybuttonrealestate.com)", Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("CV", caseNum || caseName, "AL", "code"),
+          county: "AL",
+          state: "AL",
+          lead_type: "Code Violation",
+          owner_name: caseName || null,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Code Violation / Civil Rights — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[AL] Code Violations error:", e);
+  }
+  return leads;
+}
+
+// ─── OUT-OF-STATE OWNERS — CourtListener Alabama ─────────────────────────
+export async function scrapeOutOfStateOwners(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  // Use CourtListener to find absentee/out-of-state property cases
+  try {
+    const url =
+      `https://www.courtlistener.com/api/rest/v4/dockets/` +
+      `?court=alnd&date_filed__gte=${fromDate}&date_filed__lte=${toDate}` +
+      `&nature_of_suit=290&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, {
+      headers: { "User-Agent": "Atlas/1.0 (atlas@easybuttonrealestate.com)", Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("OOS", caseNum || caseName, "AL", "oos"),
+          county: "AL",
+          state: "AL",
+          lead_type: "Out-of-State Owner",
+          owner_name: caseName || null,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Out-of-State Owner / Property Dispute — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[AL] Out-of-State Owners error:", e);
+  }
+  return leads;
+}
+
+// ─── VACANT / ABANDONED — Alabama PACER civil RSS ────────────────────────
+export async function scrapeVacantAbandoned(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rssRes = await fetchWithRetry("https://ecf.alnb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (rssRes.ok) {
+      const xml = await rssRes.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+        const link = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+        const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+        const desc = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+        if (!title) continue;
+        const lower = (title + " " + desc).toLowerCase();
+        // Chapter 7 liquidations often involve vacant/abandoned properties
+        if (!lower.includes("chapter 7") && !lower.includes("vacant") && !lower.includes("abandon")) continue;
+        leads.push({
+          id: makeId("VAC", title, "AL", "vacant"),
+          county: "AL",
+          state: "AL",
+          lead_type: "Vacant/Abandoned",
+          owner_name: title.split(/\s+v\.?\s+/i)[0]?.trim() || title,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: null,
+          filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Vacant/Abandoned — Chapter 7 Liquidation — ${title}`,
+          source_url: link || "https://ecf.alnb.uscourts.gov/cgi-bin/rss_outside.pl",
+          raw_data: JSON.stringify({ title, pubDate, desc }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[AL] Vacant/Abandoned error:", e);
+  }
+  return leads;
+}
+
+// ─── DIVORCE / EVICTION — Alabama PACER civil RSS ────────────────────────
+export async function scrapeDivorce(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rssRes = await fetchWithRetry("https://ecf.alnd.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (rssRes.ok) {
+      const xml = await rssRes.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+        const link = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+        const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+        const desc = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+        if (!title) continue;
+        const lower = (title + " " + desc).toLowerCase();
+        if (!lower.includes("matrimon") && !lower.includes("divorce") && !lower.includes("dissolution") && !lower.includes("evict")) continue;
+        const parts = title.split(/\s+v\.?\s+/i);
+        leads.push({
+          id: makeId("DIV", title, "AL", "divorce"),
+          county: "AL",
+          state: "AL",
+          lead_type: "Divorce",
+          owner_name: parts.join(" & ") || title,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: null,
+          filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Divorce / Eviction — ${title}`,
+          source_url: link || "https://ecf.alnd.uscourts.gov/cgi-bin/rss_outside.pl",
+          raw_data: JSON.stringify({ title, pubDate, desc }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[AL] Divorce/Eviction RSS error:", e);
+  }
+  return leads;
+}
+
 export async function scrapeAlabama(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
   const results = await Promise.allSettled([
     scrapePreForeclosure(county, fromDate, toDate),
@@ -307,6 +510,13 @@ export async function scrapeAlabama(county: string, fromDate: string, toDate: st
     scrapeFSBO(county, fromDate, toDate),
     scrapeObituaries(county, fromDate, toDate),
     scrapeBankruptcy(fromDate, toDate),
+    scrapeCodeViolations(fromDate, toDate),
+    scrapeDivorce(fromDate, toDate),
+    scrapeOutOfStateOwners(fromDate, toDate),
+    scrapeVacantAbandoned(fromDate, toDate),
+    scrapeProbate(county, fromDate, toDate),
+  
+  
   ]);
 
   return results

@@ -589,6 +589,207 @@ export async function scrapeBankruptcy(fromDate: string, toDate: string): Promis
 }
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
+
+// ─── CODE VIOLATIONS — Missouri municipal portals ─────────────────────────
+
+// ─── PROBATE — Missouri probate court filings ────────────────────────────────
+export async function scrapeProbate(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const url = `https://www.courtlistener.com/api/rest/v4/dockets/?court=mowb&date_filed__gte=${fromDate}&date_filed__lte=${toDate}&nature_of_suit=110&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, { headers: { "User-Agent": "Atlas/1.0", Accept: "application/json" } });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("PROB", caseNum || caseName, "MO", "probate"),
+          county: "MO", state: "MO", lead_type: "Probate",
+          owner_name: caseName || null, address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null, filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null, lender: null, loan_amount: null,
+          sale_date: null, sale_amount: null,
+          description: `Missouri Probate — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) { console.error("[MO] Probate error:", e); }
+  return leads;
+}
+
+export async function scrapeCodeViolations(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  // CourtListener API — Missouri district court civil cases (code enforcement)
+  try {
+    const url =
+      `https://www.courtlistener.com/api/rest/v4/dockets/` +
+      `?court=mowd&date_filed__gte=${fromDate}&date_filed__lte=${toDate}` +
+      `&nature_of_suit=440&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, {
+      headers: { "User-Agent": "Atlas/1.0 (atlas@easybuttonrealestate.com)", Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("CV", caseNum || caseName, "MO", "code"),
+          county: "MO",
+          state: "MO",
+          lead_type: "Code Violation",
+          owner_name: caseName || null,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Code Violation / Civil Rights — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[MO] Code Violations error:", e);
+  }
+  return leads;
+}
+
+// ─── OUT-OF-STATE OWNERS — CourtListener Missouri ─────────────────────────
+export async function scrapeOutOfStateOwners(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  // Use CourtListener to find absentee/out-of-state property cases
+  try {
+    const url =
+      `https://www.courtlistener.com/api/rest/v4/dockets/` +
+      `?court=mowd&date_filed__gte=${fromDate}&date_filed__lte=${toDate}` +
+      `&nature_of_suit=290&order_by=-date_filed&page_size=50`;
+    const res = await fetchWithRetry(url, {
+      headers: { "User-Agent": "Atlas/1.0 (atlas@easybuttonrealestate.com)", Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json() as { results?: unknown[] };
+      for (const r of (data?.results || []) as Record<string, unknown>[]) {
+        const caseName = String(r.case_name || "");
+        const caseNum = String(r.docket_number || "");
+        const filedDate = String(r.date_filed || "");
+        if (!caseName && !caseNum) continue;
+        leads.push({
+          id: makeId("OOS", caseNum || caseName, "MO", "oos"),
+          county: "MO",
+          state: "MO",
+          lead_type: "Out-of-State Owner",
+          owner_name: caseName || null,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: caseNum || null,
+          filing_date: formatDate(filedDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Out-of-State Owner / Property Dispute — ${caseName || caseNum}`,
+          source_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : "https://www.courtlistener.com/",
+          raw_data: JSON.stringify({ caseName, caseNum, filedDate }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[MO] Out-of-State Owners error:", e);
+  }
+  return leads;
+}
+
+// ─── VACANT / ABANDONED — Missouri PACER civil RSS ────────────────────────
+export async function scrapeVacantAbandoned(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rssRes = await fetchWithRetry("https://ecf.mowb.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (rssRes.ok) {
+      const xml = await rssRes.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+        const link = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+        const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+        const desc = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+        if (!title) continue;
+        const lower = (title + " " + desc).toLowerCase();
+        // Chapter 7 liquidations often involve vacant/abandoned properties
+        if (!lower.includes("chapter 7") && !lower.includes("vacant") && !lower.includes("abandon")) continue;
+        leads.push({
+          id: makeId("VAC", title, "MO", "vacant"),
+          county: "MO",
+          state: "MO",
+          lead_type: "Vacant/Abandoned",
+          owner_name: title.split(/\s+v\.?\s+/i)[0]?.trim() || title,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: null,
+          filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Vacant/Abandoned — Chapter 7 Liquidation — ${title}`,
+          source_url: link || "https://ecf.mowb.uscourts.gov/cgi-bin/rss_outside.pl",
+          raw_data: JSON.stringify({ title, pubDate, desc }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[MO] Vacant/Abandoned error:", e);
+  }
+  return leads;
+}
+
+// ─── DIVORCE / EVICTION — Missouri PACER civil RSS ────────────────────────
+export async function scrapeDivorce(fromDate: string, toDate: string): Promise<Lead[]> {
+  const leads: Lead[] = [];
+  try {
+    const rssRes = await fetchWithRetry("https://ecf.mowd.uscourts.gov/cgi-bin/rss_outside.pl");
+    if (rssRes.ok) {
+      const xml = await rssRes.text();
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      for (const item of items) {
+        const title = (item.match(/<title><!\[CDATA\[(.+?)\]\]><\/title>/) || item.match(/<title>(.+?)<\/title>/))?.[1]?.trim() || "";
+        const link = (item.match(/<link>(.+?)<\/link>/))?.[1]?.trim() || "";
+        const pubDate = (item.match(/<pubDate>(.+?)<\/pubDate>/))?.[1]?.trim() || "";
+        const desc = (item.match(/<description><!\[CDATA\[(.+?)\]\]><\/description>/) || item.match(/<description>(.+?)<\/description>/))?.[1]?.trim() || "";
+        if (!title) continue;
+        const lower = (title + " " + desc).toLowerCase();
+        if (!lower.includes("matrimon") && !lower.includes("divorce") && !lower.includes("dissolution") && !lower.includes("evict")) continue;
+        const parts = title.split(/\s+v\.?\s+/i);
+        leads.push({
+          id: makeId("DIV", title, "MO", "divorce"),
+          county: "MO",
+          state: "MO",
+          lead_type: "Divorce",
+          owner_name: parts.join(" & ") || title,
+          address: null, city: null, zip: null,
+          mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
+          case_number: null,
+          filing_date: pubDate ? formatDate(new Date(pubDate).toISOString().slice(0,10)) : formatDate(fromDate),
+          assessed_value: null, tax_year: null,
+          lender: null, loan_amount: null, sale_date: null, sale_amount: null,
+          description: `Divorce / Eviction — ${title}`,
+          source_url: link || "https://ecf.mowd.uscourts.gov/cgi-bin/rss_outside.pl",
+          raw_data: JSON.stringify({ title, pubDate, desc }),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[MO] Divorce/Eviction RSS error:", e);
+  }
+  return leads;
+}
+
 export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[]> {
   const results = await Promise.allSettled([
     scrapeJacksonPreForeclosure(fromDate, toDate),
@@ -600,6 +801,13 @@ export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[
     scrapeKCCraigslistFSBO(fromDate, toDate),
     scrapeKCObituaries(fromDate, toDate),
     scrapeBankruptcy(fromDate, toDate),
+    scrapeCodeViolations(fromDate, toDate),
+    scrapeDivorce(fromDate, toDate),
+    scrapeOutOfStateOwners(fromDate, toDate),
+    scrapeVacantAbandoned(fromDate, toDate),
+    scrapeProbate(fromDate, toDate),
+  
+  
   ]);
   
   return results.flatMap(r => r.status === "fulfilled" ? r.value : []);
