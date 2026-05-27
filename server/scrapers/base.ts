@@ -61,7 +61,14 @@ export async function fetchWithRetry(url: string, options: RequestInit = {}, ret
   };
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(fetchUrl, { ...options, headers });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      let res: Response;
+      try {
+        res = await fetch(fetchUrl, { ...options, headers, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (res.ok || res.status === 404) return res;
       if (res.status === 429 || res.status >= 500) {
         await new Promise(r => setTimeout(r, 2000 * (i + 1)));
