@@ -586,7 +586,7 @@ export async function scrapeOutOfStateOwners(fromDate: string, toDate: string): 
           id: makeId("OOS", caseNum || caseName, "WI", "oos"),
           county: "WI",
           state: "WI",
-          lead_type: "Out-of-State Owner",
+          lead_type: "Vacant/Abandoned",
           owner_name: caseName || null,
           address: null, city: null, zip: null,
           mailing_address: null, mailing_city: null, mailing_state: null, mailing_zip: null,
