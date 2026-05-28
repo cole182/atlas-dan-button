@@ -53,7 +53,7 @@ async function runScrapeJob(fromDate: string, toDate: string): Promise<number> {
 
   try {
     const counties = CLIENT_CONFIG.counties.map(c => ({
-      name: c.name,
+      name: c.name || (c as any).county || "",
       state: c.state,
       leadTypes: ["Pre-Foreclosure", "Tax Delinquent", "Probate", "Sheriff Sale", "FSBO", "Obituary", "Code Violation", "Divorce", "Fire Damage"],
     }));
