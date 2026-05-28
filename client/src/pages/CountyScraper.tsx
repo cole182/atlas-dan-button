@@ -1,6 +1,6 @@
 // County Scraper — full-stack live data version
 import { useState, useEffect, useCallback } from "react";
-import { MapPin, Clock, Download, RefreshCw, Filter, Search, Calendar, ChevronDown, Database, Zap, History } from "lucide-react";
+import { MapPin, Clock, Download, RefreshCw, Filter, Search, Calendar, ChevronDown, Database, Zap, History, UserSearch, Phone, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -28,6 +28,10 @@ interface Lead {
   status: "new" | "reviewed" | "contacted" | "skip";
   notes: string | null;
   scraped_at: string;
+  skip_traced: boolean;
+  st_phone: string | null;
+  st_email: string | null;
+  st_mailing: string | null;
 }
 
 interface Stats {
@@ -160,6 +164,28 @@ export default function CountyScraper({ counties, accentColor }: CountyScraperPr
       body: JSON.stringify({ status }),
     });
     setLeads(prev => prev.map(l => l.id === id ? { ...l, status: status as Lead["status"] } : l));
+  };
+
+  const skipTrace = async (id: string) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, _tracing: true } as any : l));
+    try {
+      const r = await fetch(`/api/leads/${id}/skip-trace`, { method: "POST" });
+      const data = await r.json();
+      if (data.success) {
+        setLeads(prev => prev.map(l => l.id === id ? {
+          ...l, skip_traced: true,
+          st_phone: data.phone || l.st_phone,
+          st_email: data.email || l.st_email,
+          st_mailing: data.mailing || l.st_mailing,
+          _tracing: false,
+        } as any : l));
+      } else {
+        setLeads(prev => prev.map(l => l.id === id ? { ...l, _tracing: false } as any : l));
+        alert(data.error || "Skip trace failed — check your API key in Settings.");
+      }
+    } catch {
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, _tracing: false } as any : l));
+    }
   };
 
   const exportCSV = () => {
@@ -385,14 +411,42 @@ export default function CountyScraper({ counties, accentColor }: CountyScraperPr
                     <a href={lead.source_url} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-blue-400 hover:underline break-all">View Source &rarr;</a>
                   )}
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <span className="text-xs text-white/30">Mark as:</span>
-                    {(["new", "reviewed", "contacted", "skip"] as const).map(s => (
-                      <button key={s} onClick={() => updateStatus(lead.id, s)}
-                        className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all ${lead.status === s ? STATUS_CONFIG[s].className : "bg-white/5 text-white/40 border border-white/10 hover:border-white/20"}`}>
-                        {STATUS_CONFIG[s].label}
+                  {/* Skip Trace Results */}
+                  {lead.skip_traced && (lead.st_phone || lead.st_email || lead.st_mailing) && (
+                    <div className="rounded-xl p-3 space-y-1.5" style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)"}}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-xs font-semibold text-emerald-400">Skip Traced</span>
+                      </div>
+                      {lead.st_phone && <div className="flex items-center gap-2 text-xs text-white/70"><Phone className="w-3 h-3 text-emerald-400/70" />{lead.st_phone}</div>}
+                      {lead.st_email && <div className="flex items-center gap-2 text-xs text-white/70"><Mail className="w-3 h-3 text-emerald-400/70" />{lead.st_email}</div>}
+                      {lead.st_mailing && <div className="flex items-center gap-2 text-xs text-white/70"><MapPin className="w-3 h-3 text-emerald-400/70" />{lead.st_mailing}</div>}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-white/30">Mark as:</span>
+                      {(["new", "reviewed", "contacted", "skip"] as const).map(s => (
+                        <button key={s} onClick={() => updateStatus(lead.id, s)}
+                          className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all ${lead.status === s ? STATUS_CONFIG[s].className : "bg-white/5 text-white/40 border border-white/10 hover:border-white/20"}`}>
+                          {STATUS_CONFIG[s].label}
+                        </button>
+                      ))}
+                    </div>
+                    {!lead.skip_traced ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); skipTrace(lead.id); }}
+                        disabled={(lead as any)._tracing}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all disabled:opacity-50"
+                        style={{background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.3)",color:"#a5b4fc"}}>
+                        <UserSearch className="w-3.5 h-3.5" />
+                        {(lead as any)._tracing ? "Tracing..." : "Skip Trace"}
                       </button>
-                    ))}
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs text-emerald-400/70">
+                        <CheckCircle2 className="w-3 h-3" />Traced
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

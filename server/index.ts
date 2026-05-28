@@ -3,7 +3,7 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import cron from "node-cron";
-import { db, upsertLead, getLeads, updateLeadStatus, getStats, logScrapeRun, finishScrapeRun, getSettings, saveSettings } from "./db.js";
+import { db, upsertLead, getLeads, updateLeadStatus, updateLeadSkipTrace, getStats, logScrapeRun, finishScrapeRun, getSettings, saveSettings } from "./db.js";
 import { runAllScrapers, getDateRange } from "./scrapers/index.js";
 import { sendDailyReport } from "./email.js";
 
@@ -23,13 +23,15 @@ function leadsToCSV(leads: Record<string, string | null>[]): string {
     "Lead Type", "County", "State", "Owner Name", "Property Address", "City", "Zip",
     "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip",
     "Case Number", "Filing Date", "Assessed Value", "Tax Year",
-    "Lender", "Loan Amount", "Sale Date", "Sale Amount", "Description", "Source URL", "Status"
+    "Lender", "Loan Amount", "Sale Date", "Sale Amount", "Description", "Source URL", "Status",
+    "Skip Traced", "Phone", "Email", "Skip Trace Mailing"
   ];
   const fields = [
     "lead_type", "county", "state", "owner_name", "address", "city", "zip",
     "mailing_address", "mailing_city", "mailing_state", "mailing_zip",
     "case_number", "filing_date", "assessed_value", "tax_year",
-    "lender", "loan_amount", "sale_date", "sale_amount", "description", "source_url", "status"
+    "lender", "loan_amount", "sale_date", "sale_amount", "description", "source_url", "status",
+    "skip_traced", "st_phone", "st_email", "st_mailing"
   ];
   const escape = (v: string | null | undefined) => {
     if (!v) return "";
@@ -185,14 +187,17 @@ async function startServer() {
       smtp_from: s.smtp_from,
       email_recipients: s.email_recipients,
       scraper_api_key: s.scraper_api_key ? "••••••••••••••••" : "",
+      skip_trace_key: s.skip_trace_key ? "••••••••••••••••" : "",
+      auto_skip_trace: s.auto_skip_trace,
       smtp_configured: !!(s.smtp_host && s.smtp_user && s.smtp_pass && !s.smtp_pass.startsWith("placeholder")),
       scraper_api_configured: !!s.scraper_api_key,
+      skip_trace_configured: !!s.skip_trace_key,
     });
   });
 
   // POST /api/settings — save settings
   app.post("/api/settings", (req, res) => {
-    const allowed = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from", "email_recipients", "scraper_api_key"];
+    const allowed = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from", "email_recipients", "scraper_api_key", "skip_trace_key", "auto_skip_trace"];
     const partial: Record<string, string> = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined && req.body[key] !== "••••••••••••••••") {
@@ -217,6 +222,26 @@ async function startServer() {
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // POST /api/leads/:id/skip-trace — skip trace a single lead
+  app.post("/api/leads/:id/skip-trace", async (req, res) => {
+    const { id } = req.params;
+    const settings = getSettings();
+    if (!settings.skip_trace_key) {
+      return res.status(400).json({ success: false, error: "Easy Button Skip Trace API key not configured. Go to Settings to add it." });
+    }
+    // ── STUB: replace with real Easy Button Skip Trace API call once endpoint is provided ──
+    // const lead = db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as any;
+    // const r = await fetch("https://api.easybuttonskiptrace.com/v1/trace", {
+    //   method: "POST",
+    //   headers: { "Authorization": `Bearer ${settings.skip_trace_key}`, "Content-Type": "application/json" },
+    //   body: JSON.stringify({ name: lead.owner_name, address: lead.address, city: lead.city, zip: lead.zip, state: lead.state }),
+    // });
+    // const data = await r.json();
+    // updateLeadSkipTrace(id, { phone: data.phone, email: data.email, mailing: data.mailing_address });
+    // return res.json({ success: true, phone: data.phone, email: data.email, mailing: data.mailing_address });
+    return res.status(501).json({ success: false, error: "Easy Button Skip Trace API endpoint not yet wired up. Contact your Atlas administrator." });
   });
 
   // POST /api/scrape — trigger manual scrape

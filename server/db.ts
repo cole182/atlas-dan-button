@@ -43,10 +43,20 @@ db.exec(`
     raw_data      TEXT,
     status        TEXT NOT NULL DEFAULT 'new',
     notes         TEXT,
+    skip_traced   INTEGER NOT NULL DEFAULT 0,
+    st_phone      TEXT,
+    st_email      TEXT,
+    st_mailing    TEXT,
     scraped_at    TEXT NOT NULL DEFAULT (datetime('now')),
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Add skip trace columns to existing databases (idempotent)
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS skip_traced INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS st_phone TEXT;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS st_email TEXT;
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS st_mailing TEXT;
 
   CREATE INDEX IF NOT EXISTS idx_leads_county ON leads(county);
   CREATE INDEX IF NOT EXISTS idx_leads_lead_type ON leads(lead_type);
@@ -194,7 +204,9 @@ export interface AppSettings {
   smtp_pass: string;
   smtp_from: string;
   email_recipients: string; // comma-separated
-  scraper_api_key: string;
+  scraper_api_key:  string;
+  skip_trace_key:   string;
+  auto_skip_trace:  string; // "true" | "false"
 }
 
 export function getSettings(): AppSettings {
@@ -209,7 +221,24 @@ export function getSettings(): AppSettings {
     smtp_from:        stored.smtp_from        ?? process.env.SMTP_FROM        ?? "",
     email_recipients: stored.email_recipients ?? process.env.CLIENT_EMAIL     ?? "",
     scraper_api_key:  stored.scraper_api_key  ?? process.env.SCRAPER_API_KEY  ?? "",
+    skip_trace_key:   stored.skip_trace_key   ?? "",
+    auto_skip_trace:  stored.auto_skip_trace  ?? "false",
   };
+}
+
+export function updateLeadSkipTrace(
+  id: string,
+  data: { phone?: string; email?: string; mailing?: string }
+): void {
+  db.prepare(`
+    UPDATE leads SET
+      skip_traced = 1,
+      st_phone    = COALESCE(?, st_phone),
+      st_email    = COALESCE(?, st_email),
+      st_mailing  = COALESCE(?, st_mailing),
+      updated_at  = datetime('now')
+    WHERE id = ?
+  `).run(data.phone ?? null, data.email ?? null, data.mailing ?? null, id);
 }
 
 export function saveSettings(partial: Partial<AppSettings>): void {

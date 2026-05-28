@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import {
   Mail, Key, CheckCircle2, Eye, EyeOff, Save, AlertCircle,
-  Send, Plus, X, RefreshCw, Info, MapPin
+  Send, Plus, X, RefreshCw, Info, MapPin, UserSearch
 } from "lucide-react";
 
 interface SettingsData {
@@ -13,8 +13,11 @@ interface SettingsData {
   smtp_from: string;
   email_recipients: string;
   scraper_api_key: string;
+  skip_trace_key: string;
+  auto_skip_trace: string;
   smtp_configured: boolean;
   scraper_api_configured: boolean;
+  skip_trace_configured: boolean;
 }
 
 interface County {
@@ -47,6 +50,9 @@ export default function Settings({ counties = [], accentColor = "#3b82f6" }: Set
   const [scraperKey, setScraperKey] = useState("");
   const [showSmtpPass, setShowSmtpPass] = useState(false);
   const [showScraperKey, setShowScraperKey] = useState(false);
+  const [skipTraceKey, setSkipTraceKey] = useState("");
+  const [showSkipTraceKey, setShowSkipTraceKey] = useState(false);
+  const [autoSkipTrace, setAutoSkipTrace] = useState(false);
   const [testEmail, setTestEmail] = useState("");
 
   useEffect(() => {
@@ -64,6 +70,8 @@ export default function Settings({ counties = [], accentColor = "#3b82f6" }: Set
           : [""];
         setRecipients(recs.length > 0 ? recs : [""]);
         setScraperKey(data.scraper_api_key || "");
+        setSkipTraceKey(data.skip_trace_key || "");
+        setAutoSkipTrace(data.auto_skip_trace === "true");
         setTestEmail(data.email_recipients?.split(",")[0]?.trim() || "");
         setLoading(false);
       })
@@ -83,6 +91,8 @@ export default function Settings({ counties = [], accentColor = "#3b82f6" }: Set
     };
     if (smtpPass && smtpPass !== "••••••••••••••••") body.smtp_pass = smtpPass;
     if (scraperKey && scraperKey !== "••••••••••••••••") body.scraper_api_key = scraperKey;
+    if (skipTraceKey && skipTraceKey !== "••••••••••••••••") body.skip_trace_key = skipTraceKey;
+    body.auto_skip_trace = autoSkipTrace ? "true" : "false";
     try {
       const r = await fetch("/api/settings", {
         method: "POST",
@@ -95,6 +105,8 @@ export default function Settings({ counties = [], accentColor = "#3b82f6" }: Set
         setSettings(updated);
         setSmtpPass(updated.smtp_pass || "");
         setScraperKey(updated.scraper_api_key || "");
+        setSkipTraceKey(updated.skip_trace_key || "");
+        setAutoSkipTrace(updated.auto_skip_trace === "true");
       } else {
         setSaveMsg({ type: "error", text: "Failed to save settings." });
       }
@@ -301,6 +313,59 @@ export default function Settings({ counties = [], accentColor = "#3b82f6" }: Set
               scraperapi.com
             </a>. Free tier: 1,000 requests/month.
           </p>
+        </div>
+      </section>
+
+      {/* ── Easy Button Skip Trace ──────────────────────────────────────── */}
+      <section className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-700">
+          <UserSearch className="text-indigo-400" size={20} />
+          <div>
+            <h2 className="text-white font-semibold">Easy Button Skip Trace</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Automatically find phone, email &amp; mailing address for new leads</p>
+          </div>
+          {settings?.skip_trace_configured && (
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
+              <CheckCircle2 size={12} /> Active
+            </span>
+          )}
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">API Key</label>
+            <div className="relative">
+              <input type={showSkipTraceKey ? "text" : "password"} value={skipTraceKey} onChange={e => setSkipTraceKey(e.target.value)}
+                placeholder="Your Easy Button Skip Trace API key"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 pr-9 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+              <button type="button" onClick={() => setShowSkipTraceKey(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                {showSkipTraceKey ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">API key provided by your Atlas administrator upon setup.</p>
+          </div>
+          <div className="flex items-center justify-between py-3 px-4 bg-slate-900 rounded-lg border border-slate-700">
+            <div>
+              <div className="text-sm text-white font-medium">Auto-trace new leads</div>
+              <div className="text-xs text-slate-400 mt-0.5">Automatically skip trace every new lead as it comes in</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoSkipTrace(v => !v)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                autoSkipTrace ? "bg-indigo-600" : "bg-slate-600"
+              }`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                autoSkipTrace ? "translate-x-6" : "translate-x-1"
+              }`} />
+            </button>
+          </div>
+          {!settings?.skip_trace_configured && (
+            <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <AlertCircle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-300/80">Enter your API key above and save to activate skip tracing. You can also manually skip trace individual leads from the County Scraper page.</p>
+            </div>
+          )}
         </div>
       </section>
 
