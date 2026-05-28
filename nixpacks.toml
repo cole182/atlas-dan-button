@@ -8,9 +8,9 @@ cmds = [
 ]
 [phases.build]
 cmds = [
-  "rm -rf /app/node_modules/.cache /app/dist",
+  "rm -rf /app/dist",
   "export PATH=/usr/local/bin:$PATH && pnpm run build"
 ]
 [start]
 cmd = "node dist/index.js"
-# cache-bust: force-clean-build-2
+# cache-bust: force-clean-dist-3
