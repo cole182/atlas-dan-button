@@ -477,23 +477,15 @@ export async function scrapeCodeViolations(fromDate: string, toDate: string): Pr
   return leads;
 }
 
-// ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
+// ─── MAIN EXPORT ────────────────────────────────────────────────────────────────────────────────────
 export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[]> {
-  const [lisPendens, taxDelinquent, probate, fsbo, obituaries, codeViolations] = await Promise.allSettled([
-    scrapeLisPendens(fromDate, toDate),
-    scrapeTaxDelinquent(fromDate, toDate),
-    scrapeProbate(fromDate, toDate),
-    scrapeCraigslistFSBO(fromDate, toDate),
-    scrapeObituaries(fromDate, toDate),
-    scrapeCodeViolations(fromDate, toDate),
+  // Only include lead types that reliably return a property address
+  // SKIPPED (no address): LisPendens, TaxDelinquent (no address in source), Probate, FSBO, Obituaries
+  const [codeViolations] = await Promise.allSettled([
+    scrapeCodeViolations(fromDate, toDate),  // address in source
   ]);
   
   return [
-    ...(lisPendens.status === "fulfilled" ? lisPendens.value : []),
-    ...(taxDelinquent.status === "fulfilled" ? taxDelinquent.value : []),
-    ...(probate.status === "fulfilled" ? probate.value : []),
-    ...(fsbo.status === "fulfilled" ? fsbo.value : []),
-    ...(obituaries.status === "fulfilled" ? obituaries.value : []),
     ...(codeViolations.status === "fulfilled" ? codeViolations.value : []),
   ];
 }

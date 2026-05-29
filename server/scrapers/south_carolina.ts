@@ -650,24 +650,19 @@ async function scrapeMarionCounty(fromDate: string, toDate: string): Promise<Lea
 export async function scrapeSC(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
   const leads: Lead[] = [];
 
+  // Only include lead types that reliably return a property address
+  // SKIPPED: HorryPreForeclosure (null address), HorryProbate (null address), Georgetown/Marion (null address)
   switch (county.toLowerCase()) {
     case "horry":
       leads.push(
-        ...(await scrapeHorryPreForeclosure(fromDate, toDate)),
-        ...(await scrapeHorryForeclosure(fromDate, toDate)),
-        ...(await scrapeHorryTaxDelinquent(fromDate, toDate)),
-        ...(await scrapeHorryProbate(fromDate, toDate)),
-        ...(await scrapeHorrySheriffSales(fromDate, toDate)),
+        ...(await scrapeHorryForeclosure(fromDate, toDate)),    // address in source
+        ...(await scrapeHorryTaxDelinquent(fromDate, toDate)),  // address in source
+        ...(await scrapeHorrySheriffSales(fromDate, toDate)),   // address in source
       );
       break;
-    case "georgetown":
-      leads.push(...(await scrapeGeorgetownCounty(fromDate, toDate)));
-      break;
-    case "marion":
-      leads.push(...(await scrapeMarionCounty(fromDate, toDate)));
-      break;
+    // Georgetown and Marion scrapers return null addresses — skipped until improved
     default:
-      console.warn(`[SC] No scraper for county: ${county}`);
+      console.warn(`[SC] No scraper with address data for county: ${county}`);
   }
 
   return leads;

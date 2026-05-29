@@ -487,20 +487,17 @@ export async function scrapeDivorce(fromDate: string, toDate: string): Promise<L
 }
 
 export async function scrapeAlabama(county: string, fromDate: string, toDate: string): Promise<Lead[]> {
+  // Only include lead types that reliably return a property address
+  // SKIPPED (no address): PreForeclosure (court-only), FSBO (title only), Obituaries
+  // Probate/Bankruptcy get address from assessor lookup
   const results = await Promise.allSettled([
-    scrapePreForeclosure(county, fromDate, toDate),
-    scrapeTaxDelinquent(county, fromDate, toDate),
-    scrapeSheriffSales(county, fromDate, toDate),
-    scrapeFSBO(county, fromDate, toDate),
-    scrapeObituaries(county, fromDate, toDate),
-    scrapeBankruptcy(fromDate, toDate),
-    scrapeCodeViolations(fromDate, toDate),
+    scrapeTaxDelinquent(county, fromDate, toDate),   // address in source
+    scrapeSheriffSales(county, fromDate, toDate),    // address in source
+    scrapeCodeViolations(fromDate, toDate),          // address in source
     scrapeDivorce(fromDate, toDate),
     scrapeOutOfStateOwners(fromDate, toDate),
     scrapeVacantAbandoned(fromDate, toDate),
-    scrapeProbate(county, fromDate, toDate),
-  
-  
+    scrapeProbate(county, fromDate, toDate),         // address from assessor
   ]);
 
   return results

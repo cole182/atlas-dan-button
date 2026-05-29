@@ -83,24 +83,24 @@ export async function runAllScrapers(
     // States with county-by-county scrapers (AL, OH, SC)
     for (const county of stateCounties) {
       try {
-        onProgress?.(`Scraping ${county.name}, ${county.state} (all 11 lead types)...`);
+        onProgress?.(`Scraping ${(county.name || (county as any).county || "")}, ${county.state} (all 11 lead types)...`);
         let leads: Lead[] = [];
         if (state === "AL") {
-          leads = await alabama.scrapeAlabama(county.name, fromDate, toDate);
+          leads = await alabama.scrapeAlabama((county.name || (county as any).county || ""), fromDate, toDate);
         } else if (state === "OH") {
-          leads = await ohio.scrapeOhio(county.name, fromDate, toDate);
+          leads = await ohio.scrapeOhio((county.name || (county as any).county || ""), fromDate, toDate);
         } else if (state === "SC") {
-          leads = await southCarolina.scrapeSC(county.name, fromDate, toDate);
+          leads = await southCarolina.scrapeSC((county.name || (county as any).county || ""), fromDate, toDate);
         } else {
-          const msg = `No scraper registered for ${county.name}, ${county.state}`;
+          const msg = `No scraper registered for ${(county.name || (county as any).county || "")}, ${county.state}`;
           errors.push(msg);
           onProgress?.(`✗ ${msg}`);
           continue;
         }
         allLeads.push(...leads);
-        onProgress?.(`✓ ${county.name} ${county.state}: ${leads.length} leads`);
+        onProgress?.(`✓ ${(county.name || (county as any).county || "")} ${county.state}: ${leads.length} leads`);
       } catch (e) {
-        const msg = `Error scraping ${county.name} ${county.state}: ${(e as Error).message}`;
+        const msg = `Error scraping ${(county.name || (county as any).county || "")} ${county.state}: ${(e as Error).message}`;
         errors.push(msg);
         onProgress?.(`✗ ${msg}`);
       }
@@ -109,8 +109,9 @@ export async function runAllScrapers(
     // State-wide scrapers (run once per state, after county loop)
     // These call functions that are NOT county-specific
     if (state === "AL") {
+      // Bankruptcy address comes from assessor — kept; no separate state-wide AL Bankruptcy needed
+      // (it's already called inside scrapeAlabama per county)
       const stateWideFns: Array<[string, () => Promise<Lead[]>]> = [
-        ["AL Bankruptcy", () => alabama.scrapeBankruptcy(fromDate, toDate)],
         ["AL Code Violations", () => alabama.scrapeCodeViolations(fromDate, toDate)],
         ["AL Divorce/Eviction", () => alabama.scrapeDivorce(fromDate, toDate)],
         ["AL Out-of-State Owners", () => alabama.scrapeOutOfStateOwners(fromDate, toDate)],
@@ -130,9 +131,9 @@ export async function runAllScrapers(
       }
     }
     if (state === "OH") {
+      // SKIPPED (no address): Obituaries
+      // Bankruptcy address comes from assessor — already called inside scrapeOhio()
       const stateWideFns: Array<[string, () => Promise<Lead[]>]> = [
-        ["OH Bankruptcy", () => ohio.scrapeBankruptcy(fromDate, toDate)],
-        ["OH Obituaries", () => ohio.scrapeObituaries(fromDate, toDate)],
         ["OH Code Violations", () => ohio.scrapeCodeViolations(fromDate, toDate)],
         ["OH Divorce/Eviction", () => ohio.scrapeDivorce(fromDate, toDate)],
         ["OH Out-of-State Owners", () => ohio.scrapeOutOfStateOwners(fromDate, toDate)],
@@ -152,10 +153,8 @@ export async function runAllScrapers(
       }
     }
     if (state === "SC") {
+      // SKIPPED (no address): Bankruptcy, Obituaries, FSBO
       const stateWideFns: Array<[string, () => Promise<Lead[]>]> = [
-        ["SC Bankruptcy", () => southCarolina.scrapeBankruptcy(fromDate, toDate)],
-        ["SC Obituaries", () => southCarolina.scrapeObituaries(fromDate, toDate)],
-        ["SC FSBO", () => southCarolina.scrapeFSBO(fromDate, toDate)],
         ["SC Code Violations", () => southCarolina.scrapeCodeViolations(fromDate, toDate)],
         ["SC Divorce/Eviction", () => southCarolina.scrapeDivorce(fromDate, toDate)],
         ["SC Out-of-State Owners", () => southCarolina.scrapeOutOfStateOwners(fromDate, toDate)],

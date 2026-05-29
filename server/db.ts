@@ -87,14 +87,12 @@ for (const sql of migrations) {
 }
 
 // ─── ONE-TIME CLEANUP: delete leads missing address or owner name ─────────────
-// Leads saved before address+name enforcement was added may lack these fields.
-// Remove them so the DB only contains fully actionable leads.
+// Leads saved before address enforcement was added may lack address fields.
+// Remove them so the DB only contains actionable leads with a property address.
 try {
   const deleted = db.prepare(
     `DELETE FROM leads WHERE
-      (address IS NULL OR trim(address) = '' OR length(trim(address)) < 5)
-      OR
-      (owner_name IS NULL OR trim(owner_name) = '' OR length(trim(owner_name)) < 2)`
+      (address IS NULL OR trim(address) = '' OR length(trim(address)) < 5)`
   ).run();
   if (deleted.changes > 0) {
     console.log(`[db] Cleaned up ${deleted.changes} leads missing address or owner name`);
@@ -143,11 +141,9 @@ export function normalizeCounty(county: string | null | undefined): string {
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 export function upsertLead(lead: Record<string, string | null>) {
-  // Reject leads missing a usable property address OR owner name
+  // Reject leads with no usable property address
   const addr = (lead.address || '').trim();
   if (!addr || addr.length < 5) return false;
-  const name = (lead.owner_name || '').trim();
-  if (!name || name.length < 2) return false;
   const existing = db.prepare("SELECT id FROM leads WHERE id = ?").get(lead.id);
   if (existing) return false; // already have it, skip
   // Sanitize: ensure all named params exist (SQLite throws RangeError if missing)

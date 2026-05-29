@@ -514,15 +514,16 @@ export async function scrapeOhio(county: string, fromDate: string, toDate: strin
     return [];
   }
 
+  // Only include lead types that reliably return a property address
+  // SKIPPED (no address): PreForeclosure (court-only), FSBO (title only)
+  // Probate/Bankruptcy get address from assessor lookup
   const results = await Promise.allSettled([
-    scrapePreForeclosure(fromDate, toDate),
-    scrapeSheriffSales(fromDate, toDate),
-    scrapeTaxDelinquent(fromDate, toDate),
-    scrapeProbate(fromDate, toDate),
-    scrapeFSBO(fromDate, toDate),
-    scrapeFireDamage(fromDate, toDate),
-    scrapeBankruptcy(fromDate, toDate),
-    scrapeCodeViolationsHamilton(fromDate, toDate),
+    scrapeSheriffSales(fromDate, toDate),            // address in source
+    scrapeTaxDelinquent(fromDate, toDate),           // address in source
+    scrapeProbate(fromDate, toDate),                 // address from assessor
+    scrapeFireDamage(fromDate, toDate),              // address in source
+    scrapeBankruptcy(fromDate, toDate),              // address from assessor
+    scrapeCodeViolationsHamilton(fromDate, toDate),  // address in source
   ]);
 
   return results
