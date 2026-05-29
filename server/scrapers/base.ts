@@ -136,6 +136,26 @@ export async function fetchRendered(url: string, retries = 2): Promise<Response>
   throw new Error(`fetchRendered failed after ${retries} retries: ${url}`);
 }
 
+/**
+ * proxiedFetch — legacy alias for fetchWithRetry with ScraperAPI support.
+ * Kept for backward compatibility with suffolk_ny.ts and other scrapers
+ * that import this name.
+ */
+export async function proxiedFetch(
+  url: string,
+  options: { render?: boolean; method?: string; body?: string; contentType?: string; retries?: number } = {}
+): Promise<Response> {
+  const { render = false, method = "GET", body, contentType, retries = 3 } = options;
+  if (render) {
+    return fetchRendered(url, retries);
+  }
+  return fetchWithRetry(
+    url,
+    { method, body, headers: contentType ? { "Content-Type": contentType } : {} },
+    retries
+  );
+}
+
 export interface CountyConfig {
   name: string;
   state: string;
