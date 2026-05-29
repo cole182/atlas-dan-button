@@ -32,37 +32,52 @@ export function makeId(...parts: (string | null | undefined)[]): string {
 
 export function formatDate(d: string | null | undefined): string | null {
   if (!d) return null;
-  // Try to parse and normalize to YYYY-MM-DD
   const parsed = new Date(d);
   if (isNaN(parsed.getTime())) return d;
   return parsed.toISOString().split("T")[0];
 }
 
+// URLs that should NEVER go through ScraperAPI
+const SKIP_SCRAPER_PATTERNS = [
+  "uscourts.gov",      // PACER — requires court auth
+  "craigslist.org",    // Craigslist — blocks ScraperAPI too
+  "scraperapi.com",    // Already proxied
+  "api.scraperapi",    // Already proxied
+  "data.kcmo.org",     // Open data API — no bot blocking
+  "data.cincinnati",   // Open data API — no bot blocking
+  "opendata.",         // Open data APIs
+  "/resource/",        // Socrata API endpoints
+  ".json",             // JSON API calls
+  ".xml",              // XML/RSS feeds
+  "rss_outside",       // PACER RSS
+];
+
+function shouldSkipScraperAPI(url: string): boolean {
+  return SKIP_SCRAPER_PATTERNS.some(p => url.includes(p));
+}
+
+/**
+ * fetchWithRetry — standard HTML fetch, routes through ScraperAPI for
+ * government/county sites that block server IPs (403/timeout).
+ */
 export async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 3): Promise<Response> {
   const SCRAPER_KEY = process.env.SCRAPER_API_KEY;
-  // Route through ScraperAPI for government/county sites that block by IP
-  // EXCLUDE: PACER (requires auth), CourtListener (has own auth), Craigslist, RSS feeds
-  const skipScraperAPI = !SCRAPER_KEY ||
-    url.includes("uscourts.gov") ||
-    url.includes("courtlistener.com") ||
-    url.includes("craigslist.org") ||
-    url.includes("rss") ||
-    url.includes(".xml") ||
-    url.includes("api.") ||
-    url.includes("scraperapi.com");
-  const fetchUrl = skipScraperAPI
-    ? url
-    : `http://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(url)}&render=false`;
+  const useProxy = !!SCRAPER_KEY && !shouldSkipScraperAPI(url);
+  const fetchUrl = useProxy
+    ? `http://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(url)}&render=false`
+    : url;
+
   const headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     ...options.headers,
   };
+
   for (let i = 0; i < retries; i++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s — ScraperAPI can be slow
       let res: Response;
       try {
         res = await fetch(fetchUrl, { ...options, headers, signal: controller.signal });
@@ -81,6 +96,44 @@ export async function fetchWithRetry(url: string, options: RequestInit = {}, ret
     }
   }
   throw new Error(`Failed after ${retries} retries: ${url}`);
+}
+
+/**
+ * fetchRendered — uses ScraperAPI with render=true for JavaScript-heavy pages
+ * (e.g. React/Angular portals like RealAuction, some county sheriff sites).
+ * Falls back to regular fetch if no ScraperAPI key.
+ */
+export async function fetchRendered(url: string, retries = 2): Promise<Response> {
+  const SCRAPER_KEY = process.env.SCRAPER_API_KEY;
+  if (!SCRAPER_KEY) {
+    return fetchWithRetry(url, {}, retries);
+  }
+  const fetchUrl = `http://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(url)}&render=true`;
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+  };
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // rendered pages take longer
+      let res: Response;
+      try {
+        res = await fetch(fetchUrl, { headers, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      if (res.ok || res.status === 404) return res;
+      if (res.status === 429 || res.status >= 500) {
+        await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+        continue;
+      }
+      return res;
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+    }
+  }
+  throw new Error(`fetchRendered failed after ${retries} retries: ${url}`);
 }
 
 export interface CountyConfig {
